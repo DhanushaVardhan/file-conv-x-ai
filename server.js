@@ -7,7 +7,7 @@ import { join, normalize, extname, sep } from 'node:path';
 import { timingSafeEqual } from 'node:crypto';
 import { loadEnvFile, readConfig } from './lib/config.js';
 import { ProviderError } from './lib/http.js';
-import { generateText } from './lib/providers/text.js';
+import { generateText, streamText } from './lib/providers/text.js';
 import { generateImage } from './lib/providers/image.js';
 import { startVideo, cancelVideo, getJob, publicJob } from './lib/providers/video.js';
 import { uploadToGemini, mediaMime } from './lib/providers/files.js';
@@ -143,6 +143,35 @@ function fileRefs(list) {
     .map((f) => ({ uri: f.uri, mime: f.mime }));
 }
 
+/**
+ * Answer /api/ai/text as server-sent events: "delta" {text} pieces, then "done" {text}, or "error" {error}.
+ * Errors before the provider starts answering are normal JSON errors (thrown to the caller).
+ * If the browser goes away (Stop), the provider request is aborted too.
+ */
+async function streamToBrowser(res, request) {
+  const ctl = new AbortController();
+  res.on('close', () => { if (!res.writableEnded) ctl.abort(); });
+  let ping = null;
+  const start = () => {
+    if (res.headersSent) return;
+    res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store', 'x-accel-buffering': 'no' });
+    ping = setInterval(() => res.write(': keep-alive\n\n'), 15000);
+  };
+  const send = (event, data) => { if (!res.writableEnded && !res.destroyed) res.write('event: ' + event + '\ndata: ' + JSON.stringify(data) + '\n\n'); };
+  try {
+    const text = await streamText(cfg, request, { signal: ctl.signal, onStart: start, onDelta: (piece) => send('delta', { text: piece }) });
+    start();
+    send('done', { text });
+  } catch (err) {
+    if (!res.headersSent) throw err;
+    if (!(err instanceof ProviderError)) console.error('[error]', err);
+    send('error', { error: { code: err.code || 'server_error', message: err instanceof ProviderError ? err.message : 'Something went wrong on the server.' } });
+  } finally {
+    clearInterval(ping);
+    if (res.headersSent && !res.writableEnded) res.end();
+  }
+}
+
 /* ------------------------------------------------------------------ API */
 async function handleApi(req, res, route) {
   if (route === '/health' && req.method === 'GET') return sendJson(res, 200, health());
@@ -161,9 +190,16 @@ async function handleApi(req, res, route) {
       .slice(0, 16);
     const messages = chatTurns(body.messages);
     const files = fileRefs(body.files);
+    const request = { prompt: messages ? undefined : prompt(body.prompt, 400000), messages, images, files, json: !!body.json };
     const t0 = Date.now();
-    const text = await generateText(cfg, { prompt: messages ? undefined : prompt(body.prompt, 400000), messages, images, files, json: !!body.json });
-    log('text', cfg.text.label, t0, [images.length && images.length + ' image(s)', files.length && files.length + ' media file(s)', messages && messages.length + ' turns'].filter(Boolean).join(', '));
+    const what = [images.length && images.length + ' image(s)', files.length && files.length + ' media file(s)', messages && messages.length + ' turns'].filter(Boolean).join(', ');
+    if (body.stream === true && !body.json) {
+      await streamToBrowser(res, request);
+      log('text', cfg.text.label, t0, [what, 'streamed'].filter(Boolean).join(', '));
+      return;
+    }
+    const text = await generateText(cfg, request);
+    log('text', cfg.text.label, t0, what);
     return sendJson(res, 200, { text });
   }
 

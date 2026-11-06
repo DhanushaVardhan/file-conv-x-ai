@@ -26,6 +26,24 @@ function json(res, status, d, headers = {}) {
   res.end(JSON.stringify(d));
 }
 const FAL_FLUX_SIZES = ['square_hd', 'landscape_16_9', 'portrait_16_9', 'landscape_4_3'];
+/** Split text into n roughly equal pieces (for streamed answers). */
+function pieces(text, n = 3) {
+  const out = [];
+  const size = Math.ceil(text.length / n);
+  for (let i = 0; i < text.length; i += size) out.push(text.slice(i, i + size));
+  return out;
+}
+/** Write server-sent events with a short pause between them, like a real stream. eol lets Gemini use CRLF. */
+async function sse(res, events, { gap = 120, eol = '\n' } = {}) {
+  res.writeHead(200, { 'content-type': 'text/event-stream' });
+  for (const ev of events) {
+    if (res.destroyed) return;
+    const lines = (ev.event ? ['event: ' + ev.event] : []).concat(['data: ' + (typeof ev.data === 'string' ? ev.data : JSON.stringify(ev.data))]);
+    res.write(lines.join(eol) + eol + eol);
+    await wait(gap);
+  }
+  res.end();
+}
 
 const server = http.createServer(async (req, res) => {
   const u = new URL(req.url, 'http://x');
@@ -36,7 +54,7 @@ const server = http.createServer(async (req, res) => {
   let m;
 
   /* ---------------- Gemini text */
-  if ((m = /^\/v1beta\/models\/(.+):generateContent$/.exec(u.pathname))) {
+  if ((m = /^\/v1beta\/models\/(.+):(generateContent|streamGenerateContent)$/.exec(u.pathname))) {
     if (req.headers['x-goog-api-key'] !== 'gk') return json(res, 403, { error: { message: 'API key not valid' } });
     if (m[1] === 'missing-model') return json(res, 404, { error: { message: 'models/missing-model is not found' } });
     const contents = b.contents;
@@ -48,6 +66,15 @@ const server = http.createServer(async (req, res) => {
       ? '{"title":"mock","elements":[{"kind":"orb"}]}'
       : 'gemini says hi' + (hasImg ? ' (saw image)' : '') + (hasFile ? ' (watched video' + (fileFirst ? ', media first' : '') + ')' : '') +
         (contents.length > 1 ? ' [' + contents.length + ' turns: ' + contents.map((c) => c.role).join('/') + ']' : '');
+    if (m[2] === 'streamGenerateContent') {
+      if (u.searchParams.get('alt') !== 'sse') return json(res, 400, { error: { message: 'mock only streams with alt=sse' } });
+      const chunk = (parts, extra = {}) => ({ data: { candidates: [{ content: { role: 'model', parts }, ...extra }] } });
+      const [first, ...rest] = pieces(text);
+      const events = [chunk([{ text: 'thinking...', thought: true }]), chunk([{ text: first }])];
+      if (/break please/.test(JSON.stringify(contents))) events.push({ data: { error: { code: 500, message: 'Internal error encountered.', status: 'INTERNAL' } } });
+      else rest.forEach((t, i) => events.push(chunk([{ text: t }], i === rest.length - 1 ? { finishReason: 'STOP' } : {})));
+      return sse(res, events, { eol: '\r\n' });
+    }
     return json(res, 200, { candidates: [{ content: { parts: [{ text: 'thinking...', thought: true }, { text }] } }] });
   }
   /* ---------------- Gemini Files API */
@@ -99,14 +126,42 @@ const server = http.createServer(async (req, res) => {
     if (req.headers['x-api-key'] !== 'ak' || req.headers['anthropic-version'] !== '2023-06-01') return json(res, 401, { error: { message: 'bad key' } });
     const hasImg = b.messages[0].content.some((c) => c.type === 'image');
     const n = b.messages.length;
-    return json(res, 200, { content: [{ type: 'thinking', thinking: '...' }, { type: 'text', text: 'claude says hi' + (hasImg ? ' (saw image)' : '') + (n > 1 ? ' [' + n + ' turns: ' + b.messages.map((x) => x.role).join('/') + ']' : '') }], stop_reason: 'end_turn' });
+    const text = 'claude says hi' + (hasImg ? ' (saw image)' : '') + (n > 1 ? ' [' + n + ' turns: ' + b.messages.map((x) => x.role).join('/') + ']' : '');
+    if (b.stream === true) {
+      const ev = (event, data) => ({ event, data: { type: event, ...data } });
+      return sse(res, [
+        ev('message_start', { message: { id: 'msg_1', type: 'message', role: 'assistant', content: [], model: b.model, stop_reason: null } }),
+        ev('content_block_start', { index: 0, content_block: { type: 'thinking', thinking: '', signature: '' } }),
+        ev('content_block_delta', { index: 0, delta: { type: 'thinking_delta', thinking: 'secret thoughts' } }),
+        ev('content_block_delta', { index: 0, delta: { type: 'signature_delta', signature: 'sig' } }),
+        ev('content_block_stop', { index: 0 }),
+        ev('content_block_start', { index: 1, content_block: { type: 'text', text: '' } }),
+        ev('ping', {}),
+        ...pieces(text).map((t) => ev('content_block_delta', { index: 1, delta: { type: 'text_delta', text: t } })),
+        ev('content_block_stop', { index: 1 }),
+        ev('message_delta', { delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: 7 } }),
+        ev('message_stop', {}),
+      ]);
+    }
+    return json(res, 200, { content: [{ type: 'thinking', thinking: '...' }, { type: 'text', text }], stop_reason: 'end_turn' });
   }
   /* ---------------- OpenAI */
   if (u.pathname === '/v1/responses') {
     if (req.headers.authorization !== 'Bearer ok') return json(res, 401, { error: { message: 'bad key' } });
     const n = b.input.length;
     const asstOk = b.input.filter((x) => x.role === 'assistant').every((x) => x.content[0].type === 'output_text');
-    return json(res, 200, { output: [{ type: 'reasoning' }, { type: 'message', content: [{ type: 'output_text', text: 'openai says hi' + (n > 1 ? ' [' + n + ' turns, assistant ' + (asstOk ? 'ok' : 'WRONG') + ']' : '') }] }] });
+    const text = 'openai says hi' + (n > 1 ? ' [' + n + ' turns, assistant ' + (asstOk ? 'ok' : 'WRONG') + ']' : '');
+    if (b.stream === true) {
+      const ev = (event, data) => ({ event, data: { type: event, ...data } });
+      return sse(res, [
+        ev('response.created', { response: { id: 'resp_1', status: 'in_progress' } }),
+        ev('response.reasoning_summary_text.delta', { item_id: 'rs_1', delta: 'secret thoughts' }),
+        ...pieces(text).map((t) => ev('response.output_text.delta', { item_id: 'msg_1', output_index: 1, content_index: 0, delta: t })),
+        ev('response.output_text.done', { item_id: 'msg_1', text }),
+        ev('response.completed', { response: { id: 'resp_1', status: 'completed' } }),
+      ]);
+    }
+    return json(res, 200, { output: [{ type: 'reasoning' }, { type: 'message', content: [{ type: 'output_text', text }] }] });
   }
   if (u.pathname === '/v1/images/generations') {
     if (!['1024x1024', '1536x1024', '1024x1536'].includes(b.size)) return json(res, 400, { error: { message: 'bad size ' + b.size } });

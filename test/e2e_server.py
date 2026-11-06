@@ -115,13 +115,19 @@ async def main():
         ok('watched video' in body and 'whole video + sound' in facts, 'video uploaded to Gemini and summarized: %s' % body[:60])
         await page.fill('#chatInput', 'What happens first?')
         await page.press('#chatInput', 'Enter')
-        await page.wait_for_function("document.querySelectorAll('#chatLog .msg.ai .md').length === 1", timeout=15000)
+        await page.wait_for_function("document.querySelectorAll('#chatLog .msg.ai .md').length === 1 && !document.querySelector('#chatLog .cursor') && !document.getElementById('chatSend').disabled", timeout=15000)
         ans = await page.inner_text('#chatLog .msg.ai')
         ok('watched video' in ans and '3 turns: user/model/user' in ans, 'chat reuses the upload and sends turns: ' + ans[:80])
         await page.click('#changeFile')
         await page.click('[data-sample="pdf"]')
+        try:
+            await page.wait_for_selector('#sumBody .md .cursor', timeout=15000)
+            streamed = True
+        except Exception:
+            streamed = False
         await page.wait_for_selector('#sumActions .save-btn', timeout=30000)
-        ok('gemini says hi' in await page.inner_text('#sumBody'), 'pdf summarized through the server')
+        body = await page.inner_text('#sumBody')
+        ok(streamed and 'gemini says hi' in body and 'thinking' not in body, 'pdf summary streams in through the server (cursor seen: %s)' % streamed)
         if SHOTS:
             await page.screenshot(path=ROOT + '/test/shots/server-summary.png')
         bad = [e for e in errs if 'net::' not in e and 'fonts.g' not in e]

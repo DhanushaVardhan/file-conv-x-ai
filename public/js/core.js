@@ -298,6 +298,85 @@
   }
   A.api = api;
 
+  /** Error from a server JSON body ({error: {code, message}}). */
+  function serverError(r, data) {
+    const err = aiError((data && data.error && data.error.code) || 'upstream_error', (data && data.error && data.error.message) || 'Server error ' + r.status);
+    err.serverMessage = true;
+    err.status = r.status;
+    return err;
+  }
+
+  /**
+   * POST api/ai/text asking for a stream: the server answers with server-sent events
+   * ("delta" {text}, then "done" {text}, or "error" {error}). onText gets the text so far.
+   * Errors before the answer starts come back as normal JSON.
+   */
+  async function streamText(body, { onText, signal }) {
+    let r;
+    try {
+      r = await fetch('api/ai/text', {
+        method: 'POST',
+        signal,
+        headers: headers({ 'content-type': 'application/json', accept: 'text/event-stream, application/json' }),
+        body: JSON.stringify(Object.assign({}, body, { stream: true })),
+      });
+    } catch (e) {
+      if (e && e.name === 'AbortError') throw aiError('cancelled');
+      throw aiError('network');
+    }
+    if (!(r.headers.get('content-type') || '').includes('text/event-stream') || !r.body) {
+      let data = null;
+      try { data = await r.json(); } catch (_) { /* not json */ }
+      if (!r.ok) throw serverError(r, data);
+      const text = (data && data.text) || '';
+      if (onText) onText(text);
+      return text;
+    }
+    const reader = r.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '', full = '', done = null;
+    const handle = (block) => {
+      let event = 'message', data = '';
+      for (const line of block.split('\n')) {
+        if (line.startsWith('event:')) event = line.slice(6).trim();
+        else if (line.startsWith('data:')) data += line.slice(5).replace(/^ /, '');
+      }
+      if (!data) return;
+      const d = JSON.parse(data);
+      if (event === 'delta') { full += d.text || ''; if (onText) onText(full); }
+      else if (event === 'done') done = typeof d.text === 'string' ? d.text : full;
+      else if (event === 'error') {
+        const err = serverError(r, d);
+        err.partial = full;
+        throw err;
+      }
+    };
+    try {
+      for (;;) {
+        const { value, done: end } = await reader.read();
+        if (end) break;
+        buf += dec.decode(value, { stream: true }).replace(/\r\n/g, '\n');
+        let i;
+        while ((i = buf.indexOf('\n\n')) !== -1) {
+          const block = buf.slice(0, i);
+          buf = buf.slice(i + 2);
+          if (block.trim() && !block.startsWith(':')) handle(block);
+        }
+      }
+    } catch (e) {
+      reader.cancel().catch(() => {});
+      if (e && e.name === 'AbortError') throw aiError('cancelled');
+      if (e && e.code) throw e;
+      throw aiError('network', 'The connection dropped before the answer finished. Try again.');
+    }
+    if (done === null) {
+      const err = aiError('network', 'The answer was cut off before it finished. Try again.');
+      err.partial = full;
+      throw err;
+    }
+    return done;
+  }
+
   function parseJsonLoose(text) {
     const t = String(text || '').trim();
     try { return JSON.parse(t); } catch (_) { /* keep looking */ }
@@ -361,6 +440,8 @@
         else body.prompt = input;
         if (images && images.length) body.images = await serverImages(images.slice(0, maxImages() || 16));
         if (files && files.length) body.files = files;
+        // Someone is watching the answer appear: stream it.
+        if (onText && !json) return streamText(body, { onText, signal });
         const r = await api('api/ai/text', { method: 'POST', body, signal });
         if (onText) onText(r.text);
         return r.text;

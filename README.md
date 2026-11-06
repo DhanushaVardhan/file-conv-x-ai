@@ -144,7 +144,7 @@ alembic/
 | Route | Purpose |
 |---|---|
 | `GET /api/health` | Text AI and every engine, with `available` and the keys a locked one `needs` |
-| `POST /api/ai/text` | `{prompt}` or `{messages:[{role, content}]}`, plus optional `images`, `files`, `json` → `{text}` |
+| `POST /api/ai/text` | `{prompt}` or `{messages:[{role, content}]}`, plus optional `images`, `files`, `json` → `{text}`. With `stream: true` the answer arrives as server-sent events: `delta` `{text}` pieces, then `done` `{text}` (or `error`) |
 | `POST /api/ai/upload` | Raw video/audio body → `{uri, mime}` from the Gemini Files API (for summaries) |
 | `POST /api/ai/image` | `{prompt, aspect, engine}` → `{images:[{mime, data}], model}` |
 | `POST /api/ai/video` | `{prompt, aspect, duration, engine}` → `{id, status}` (starts a job) |

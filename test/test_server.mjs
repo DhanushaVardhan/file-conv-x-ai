@@ -51,6 +51,21 @@ const del = async (B, path, headers = {}) => {
 const lastCall = (re) => [...log].reverse().find((l) => re.test(l.path) && l.method === 'POST');
 const lastAny = (re) => [...log].reverse().find((l) => re.test(l.path));
 const img = { mime: 'image/png', data: 'iVBORw0KGgo=' };
+/** POST /api/ai/text with stream: true; returns status, content type, events, the final text and the joined deltas. */
+async function streamCall(B, body, headers = {}) {
+  const r = await fetch(B + '/api/ai/text', { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify({ ...body, stream: true }) });
+  const type = r.headers.get('content-type') || '';
+  const raw = await r.text();
+  if (!type.includes('event-stream')) return { status: r.status, type, data: JSON.parse(raw || '{}'), events: [], deltas: [] };
+  const events = raw.split('\n\n').filter((b) => b.trim() && !b.startsWith(':')).map((b) => {
+    const ev = /^event: (.*)$/m.exec(b);
+    const da = /^data: (.*)$/m.exec(b);
+    return { event: ev && ev[1], data: da ? JSON.parse(da[1]) : null };
+  });
+  const done = events.find((e) => e.event === 'done');
+  const deltas = events.filter((e) => e.event === 'delta');
+  return { status: r.status, type, events, deltas, text: done && done.data.text, joined: deltas.map((d) => d.data.text).join(''), error: (events.find((e) => e.event === 'error') || {}).data };
+}
 const avail = (h, kind) => h.engines[kind].filter((e) => e.available).map((e) => e.id).join();
 
 await ready;
@@ -110,6 +125,29 @@ await withServer({ GEMINI_API_KEY: 'gk', REPLICATE_API_TOKEN: 'rt', FAL_KEY: 'fk
   ok(chat.data.text === 'gemini says hi [3 turns: user/model/user]', 'chat turns mapped to gemini roles: ' + chat.data.text);
   const badChat = await post(B, '/api/ai/text', { messages: [{ role: 'user', content: 'a' }, { role: 'assistant', content: 'b' }] }, H);
   ok(badChat.status === 400, 'chat must end on a user turn');
+
+  // Streaming (server-sent events)
+  const s1 = await streamCall(B, { prompt: 'hi', images: [img] }, H);
+  ok(s1.status === 200 && s1.type.startsWith('text/event-stream') && s1.deltas.length >= 2 && s1.text === 'gemini says hi (saw image)' && s1.joined === s1.text,
+    'gemini streams in ' + s1.deltas.length + ' pieces, thoughts skipped: ' + s1.text);
+  const sc = lastAny(/streamGenerateContent$/);
+  ok(sc && sc.search === '?alt=sse' && sc.body.contents[0].parts.some((p) => p.inline_data), 'gemini stream uses streamGenerateContent?alt=sse');
+  const s2 = await streamCall(B, { messages: [{ role: 'user', content: 'context' }, { role: 'assistant', content: 'ok' }, { role: 'user', content: 'question?' }] }, H);
+  ok(s2.text === 'gemini says hi [3 turns: user/model/user]', 'streamed chat keeps the turns: ' + s2.text);
+  const s3 = await streamCall(B, { prompt: 'break please' }, H);
+  ok(s3.status === 200 && s3.error && s3.error.error.code === 'upstream_error' && s3.deltas.length === 1 && !s3.text, 'a provider error mid-stream arrives as an error event: ' + (s3.error && s3.error.error.message));
+  const s4 = await streamCall(B, { prompt: 'hi' });
+  ok(s4.status === 401 && s4.data.error.code === 'access_code', 'streaming needs the access code too');
+  const s5 = await streamCall(B, { prompt: 'scene', json: true }, H);
+  ok(s5.status === 200 && s5.type.includes('json') && JSON.parse(s5.data.text).title === 'mock', 'json requests are never streamed');
+  const quit = new AbortController();
+  const half = await fetch(B + '/api/ai/text', { method: 'POST', signal: quit.signal, headers: { 'content-type': 'application/json', ...H }, body: JSON.stringify({ prompt: 'hi', stream: true }) });
+  const rd = half.body.getReader();
+  await rd.read();
+  quit.abort();
+  await sleep(500);
+  const after = await post(B, '/api/ai/text', { prompt: 'hi' }, H);
+  ok(after.status === 200 && after.data.text === 'gemini says hi', 'the server shrugs off a browser that leaves mid-stream');
 
   // Gemini Files API upload
   const noCode = await fetch(B + '/api/ai/upload', { method: 'POST', headers: { 'content-type': 'video/mp4' }, body: MP4 });
@@ -207,6 +245,8 @@ await withServer({ ANTHROPIC_API_KEY: 'ak', OPENAI_API_KEY: 'ok', GEMINI_API_KEY
   ok(t.data.text === 'claude says hi (saw image)', 'claude text with image, thinking skipped');
   const chat = await post(B, '/api/ai/text', { messages: [{ role: 'user', content: 'ctx' }, { role: 'assistant', content: 'a' }, { role: 'user', content: 'q' }] });
   ok(chat.data.text === 'claude says hi [3 turns: user/assistant/user]', 'claude chat turns');
+  const cs = await streamCall(B, { prompt: 'hi', images: [img] });
+  ok(cs.text === 'claude says hi (saw image)' && cs.deltas.length >= 2 && cs.joined === cs.text && lastCall(/^\/v1\/messages$/).body.stream === true, 'claude streams text_delta only (thinking skipped): ' + cs.joined);
   const files = await post(B, '/api/ai/text', { prompt: 'x', files: [{ uri: MOCK + '/v1beta/files/abc', mime: 'video/mp4' }] });
   ok(files.status === 400 && /Only Gemini/.test(files.data.error.message), 'media files refused for non-Gemini text');
   const up = await fetch(B + '/api/ai/upload', { method: 'POST', headers: { 'content-type': 'video/mp4' }, body: MP4 });
@@ -244,9 +284,15 @@ await withServer({ OPENAI_API_KEY: 'ok', GEMINI_API_KEY: 'wrong', TEXT_PROVIDER:
   const lim = await post(B, '/api/ai/text', { prompt: 'hi' });
   ok(lim.status === 429 && lim.data.error.code === 'rate_limited', 'per-minute limit enforced');
 });
+await withServer({ OPENAI_API_KEY: 'ok', TEXT_PROVIDER: 'openai' }, 4108, async (B) => {
+  const os = await streamCall(B, { prompt: 'hi' });
+  ok(os.text === 'openai says hi' && os.deltas.length >= 2 && os.joined === os.text && lastCall(/^\/v1\/responses$/).body.stream === true, 'openai streams output_text deltas only (reasoning skipped): ' + os.joined);
+});
 await withServer({ GEMINI_API_KEY: 'wrong' }, 4105, async (B) => {
   const t = await post(B, '/api/ai/text', { prompt: 'hi' });
   ok(t.status === 502 && t.data.error.code === 'bad_key' && /GEMINI_API_KEY/.test(t.data.error.message), 'bad key explained: ' + t.data.error.message.slice(0, 70));
+  const bs = await streamCall(B, { prompt: 'hi' });
+  ok(bs.status === 502 && bs.data.error.code === 'bad_key' && !bs.events.length, 'a refused stream is a normal JSON error');
   const e = await post(B, '/api/ai/text', {});
   ok(e.status === 400, 'empty prompt rejected');
 });
