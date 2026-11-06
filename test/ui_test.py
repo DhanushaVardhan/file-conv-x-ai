@@ -61,7 +61,7 @@ sample.json = async (input, opts) => {
   return p.includes('story reel') ? STORY : SCENE;
 };
 sample.limits = async () => ({ maxPromptBytes: 262144, images: { maxCount: 5, maxInputBytes: 20000000, mediaTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] } });
-const downloads = { save: async ({ filename, data }) => { window.__saved.push({ filename, size: data.size ?? data.byteLength ?? data.length }); return { status: 'saved' }; } };
+const downloads = { save: async ({ filename, data }) => { window.__saved.push({ filename, size: data.size ?? data.byteLength ?? data.length }); (window.__blobs = window.__blobs || {})[filename] = data; return { status: 'saved' }; } };
 window.claude = { use: async (name) => { await new Promise(r => setTimeout(r, 30)); return name === 'sample' ? sample : name === 'downloads' ? downloads : null; } };
 """
 
@@ -260,6 +260,56 @@ async def main():
         saved = await page.evaluate('window.__saved')
         names = [s['filename'] for s in saved]
         ok(any(n.endswith('.png') for n in names) and any(n.endswith('.mp4') or n.endswith('.webm') for n in names) and any(n.endswith('.md') for n in names), 'downloads: %s' % names)
+
+        print('My creations')
+        await page.reload()
+        await page.wait_for_function("document.getElementById('aiPillText').textContent.includes('Claude')")
+        await page.click('#tab-image')
+        try:
+            await page.wait_for_function("window.Alembic.app.Img.history.length === 3 && window.Alembic.app.Video.history.length === 3", timeout=10000)
+            g = await page.evaluate("""({ cur: window.Alembic.app.Img.current && window.Alembic.app.Img.current.engineId,
+              svg: !!window.Alembic.app.Img.history.find(i => i.engineId === 'local:vector').extras.svg,
+              head: document.getElementById('imgGalleryHead').textContent, thumbs: document.querySelectorAll('#imgHistory button').length,
+              vids: document.querySelectorAll('#vidHistory button').length, shown: document.querySelector('#imgMedia img').src.startsWith('blob:') })""")
+            ok(g['cur'] == 'local:shader' and g['svg'] and g['thumbs'] == 3 and g['vids'] == 3 and g['shown'] and '3 images' in g['head'] and 'kept in this browser' in g['head'], 'creations survive a reload, newest on stage: %s' % g)
+        except Exception as e:
+            ok(False, 'creations survive a reload: %s' % e)
+        if SHOTS:
+            await page.wait_for_selector('#view-image:not([hidden])')
+            await page.wait_for_timeout(400)
+            await page.screenshot(path=ROOT + '/test/shots/gallery-desktop.png', full_page=True)
+        await page.set_viewport_size({'width': 390, 'height': 844})
+        await page.wait_for_timeout(300)
+        overflow = await page.evaluate('document.documentElement.scrollWidth > window.innerWidth + 1')
+        ok(not overflow, 'no horizontal scroll on a phone with My creations shown')
+        if SHOTS:
+            await page.locator('#imgGalleryHead').scroll_into_view_if_needed()
+            await page.screenshot(path=ROOT + '/test/shots/gallery-mobile.png')
+        await page.set_viewport_size({'width': 1280, 'height': 900})
+        await page.click('#imgActions button:has-text("Delete")')
+        n1 = await page.evaluate("window.Alembic.app.Img.history.length")
+        await page.click('#toasts .toast-act:has-text("Undo")')
+        n2 = await page.evaluate("window.Alembic.app.Img.history.length")
+        await page.click('#imgActions button:has-text("Delete")')
+        cur = await page.evaluate("window.Alembic.app.Img.current.engineId")
+        ok(n1 == 2 and n2 == 3 and cur == 'local:pixel', 'delete, undo, delete again: %s → %s → %s, now showing %s' % (3, n1, n2, cur))
+        await page.click('#imgGalleryHead button:has-text("Download all")')
+        try:
+            await page.wait_for_function("window.__blobs && window.__blobs['alembic-images.zip']", timeout=15000)
+            files = await page.evaluate("(async () => Object.keys((await JSZip.loadAsync(window.__blobs['alembic-images.zip'])).files).sort())()")
+            ok(len([f for f in files if f.endswith('.png')]) == 2 and 'prompts.md' in files and files[0].startswith('01-'), 'download all zips the creations with a prompts index: %s' % files)
+        except Exception as e:
+            ok(False, 'download all: %s' % e)
+        await page.reload()
+        await page.wait_for_function("window.Alembic.app.Img.history.length === 2", timeout=10000)
+        await page.click('#tab-image')
+        await page.click('#imgGalleryHead button:has-text("Clear")')
+        await page.click('#imgGalleryHead button:has-text("Delete all")')
+        st = await page.evaluate("({ n: window.Alembic.app.Img.history.length, head: document.getElementById('imgGalleryHead').hidden, tag: document.getElementById('imgTag').textContent })")
+        await page.reload()
+        await page.wait_for_function("window.Alembic.app.Video.history.length === 3", timeout=10000)
+        after = await page.evaluate("window.Alembic.app.Img.history.length")
+        ok(st['n'] == 0 and st['head'] and st['tag'] == 'Example' and after == 0, 'clear empties My creations for good, videos untouched: %s, %d after reload' % (st, after))
 
         # Mobile, dark
         m = await b.new_context(viewport={'width': 390, 'height': 844}, device_scale_factor=2, color_scheme='dark', is_mobile=True, has_touch=True)

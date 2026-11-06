@@ -68,6 +68,7 @@ public/js/vector.js       Vector Illustrator, Pixel Artist (SVG prompts, sanitiz
 public/js/shader.js       Shader Painter / Shader Film: GLSL prompt, compile-and-fix loop, WebGL2 render
 public/js/motion.js       Motion Graphics scene engine, Story Reel, recordCanvas() (MediaRecorder)
 public/js/music.js        procedural Web Audio soundtrack recorded into clips
+public/js/gallery.js      My creations: IndexedDB store of images/clips (A.gallery); fails soft when storage is blocked
 public/js/readers.js      file → "digest" {kind, text, images, tables, facts, warnings, media...}
 public/js/summary.js      summary/chat prompts; uploads media once per digest (Gemini)
 public/js/app.js          UI for the three views (Img, Video, Sum objects; exposed as Alembic.app)

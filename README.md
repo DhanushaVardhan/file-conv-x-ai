@@ -61,6 +61,7 @@ The terminal shows which engines are on. `npm run dev` restarts the server whene
 
 - **Image:** type a prompt (or press *Surprise me*), pick an engine card, pick a shape, press *Generate*. Under the result, *Same prompt with* re-runs the prompt on another engine so you can compare.
 - **Video:** pick an engine, length, shape and soundtrack. Built-in engines record in real time, so keep the tab open while it records.
+- **My creations:** every image and clip you make is kept in this browser (up to 40 of each), so it is still there after a reload. Pick one from the strip, delete it (with Undo), or press *Download all* for a zip with a `prompts.md` list. Private windows keep them only until the tab closes.
 - **Summary:** press a sample (*Lecture notes*, *Status report*, *Sales data*) or drop your own file anywhere on the page. Switch between *Summary*, *Key points*, *Study notes*, *Action items* and *Explain simply*; answers are cached, so switching back is instant. Ask questions in the chat below.
 
 ## 3. API keys: what each one turns on
@@ -131,6 +132,7 @@ alembic/
 │       ├── shader.js         Shader Painter + Shader Film (WebGL 2)
 │       ├── motion.js         Motion Graphics + Story Reel, and video recording
 │       ├── music.js          procedural soundtrack (Web Audio)
+│       ├── gallery.js        My creations: keeps images and clips in this browser (IndexedDB)
 │       ├── readers.js        turns any file into text/pictures/statistics for the AI
 │       ├── docx.js           Word reader
 │       ├── summary.js        summary and question prompts

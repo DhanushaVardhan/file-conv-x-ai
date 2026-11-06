@@ -478,6 +478,14 @@ textarea:focus, select:focus, input:focus { outline: none; border-color: var(--a
 }
 .save-btn:hover { filter: brightness(1.06); transform: translateY(-1px); }
 .save-btn svg { width: 16px; height: 16px; }
+/* My creations: header above the history strip */
+.gallery-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 4px; }
+.gallery-head h2 { margin: 0; font: 700 1rem/1.2 var(--font-display); }
+.gallery-head .fine { flex: 1 1 160px; min-width: 0; }
+.gallery-tools { display: flex; flex-wrap: wrap; gap: 6px; }
+.gallery-tools .ghost-btn { padding: 5px 12px; font-size: 0.8rem; }
+.ghost-btn.danger { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); }
+.ghost-btn.danger:hover { border-color: var(--bad); }
 .history { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 8px; }
 .history button { position: relative; padding: 0; border: 2px solid transparent; border-radius: 12px; overflow: hidden; aspect-ratio: 1; background: var(--sunk); }
 .history button[aria-current="true"] { border-color: var(--ai); }

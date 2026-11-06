@@ -443,19 +443,15 @@
     '<g stroke="#fff" stroke-opacity=".2" stroke-width="4" stroke-linecap="round"><path d="M110 820h130M760 880h170M250 940h90M650 780h70"/></g>' +
     '<g transform="translate(600 830)"><path d="M-170 0h340l-58 58h-224z" fill="#fbf3e6"/><path d="M-170 0 0-190V0z" fill="#fff"/><path d="M0-190 170 0H0z" fill="#e7d9c6"/><path d="M-112 66h224l-26 30h-172z" fill="#fbf3e6" opacity=".16"/></g>' +
     '<g stroke="#2a1856" stroke-width="5" fill="none" stroke-linecap="round" opacity=".75"><path d="M300 340q14-15 28 0 14-15 28 0M386 300q10-11 20 0 10-11 20 0"/></g></svg>';
-  const HISTORY_MAX = 24;
+  const HISTORY_MAX = 40; // per studio, also the most "My creations" keeps in this browser
 
-  function pushHistory(list, item) {
-    list.unshift(item);
-    while (list.length > HISTORY_MAX) {
-      const old = list.pop();
-      if (old.url) URL.revokeObjectURL(old.url);
-    }
+  function newId() {
+    return window.crypto && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
   }
 
   const Img = {
-    ratio: '1:1', style: 'None', engineId: null, history: [], current: null, ctl: null,
-    ids: { grid: 'imgEngines', more: 'imgMore', moreSummary: 'imgMoreSummary', locked: 'imgLocked' },
+    kind: 'image', ratio: '1:1', style: 'None', engineId: null, history: [], current: null, ctl: null, confirmClear: false,
+    ids: { grid: 'imgEngines', more: 'imgMore', moreSummary: 'imgMoreSummary', locked: 'imgLocked', galleryHead: 'imgGalleryHead', history: 'imgHistory' },
     init() {
       this.upd = counter($('imgPrompt'), $('imgCount'));
       chipGroup($('imgStyles'), Object.keys(IMAGE_STYLES), () => this.style, (v) => { this.style = v; });
@@ -471,8 +467,18 @@
       });
       $('imgStop').addEventListener('click', () => this.ctl && this.ctl.abort());
       const ex = new Blob([EXAMPLE_SVG], { type: 'image/svg+xml' });
-      $('imgMedia').append(el('img', { src: objectUrl(ex), alt: 'Example: a paper boat on a lake at sunset, drawn by the Vector Illustrator engine' }));
+      this.exampleImg = el('img', { src: objectUrl(ex), alt: 'Example: a paper boat on a lake at sunset, drawn by the Vector Illustrator engine' });
+      $('imgMedia').append(this.exampleImg);
       this.refresh();
+    },
+    /** Back to the example picture (nothing left in My creations). */
+    resetStage() {
+      this.current = null;
+      $('imgStage').dataset.ratio = '1:1';
+      $('imgMedia').replaceChildren(this.exampleImg);
+      $('imgTag').textContent = 'Example';
+      $('imgActions').innerHTML = '';
+      Gallery.render(this);
     },
     engine() {
       return this.engineId ? A.engines.find('image', this.engineId) : null;
@@ -511,8 +517,8 @@
           prompt, style: IMAGE_STYLES[this.style], aspect: ratio, signal: ctl.signal,
           onStage: (s) => { $('imgBusyTitle').textContent = s; },
         });
-        const item = Object.assign(out, { url: URL.createObjectURL(out.blob), prompt, ratio, style: this.style, engineId: engine.id, engineLabel: engine.label });
-        pushHistory(this.history, item);
+        const item = Object.assign(out, { id: newId(), createdAt: Date.now(), url: URL.createObjectURL(out.blob), prompt, ratio, style: this.style, engineId: engine.id, engineLabel: engine.label });
+        Gallery.add(this, item);
         this.show(item);
       } catch (e) {
         handleAiError(e);
@@ -538,10 +544,11 @@
         item.extras && item.extras.shader ? el('button', { class: 'ghost-btn', type: 'button', onclick: () => copyText(item.extras.shader) }, 'Copy shader') : null,
         el('button', { class: 'ghost-btn', type: 'button', onclick: () => Video.fromImage(item) }, 'Make it move'),
         el('button', { class: 'ghost-btn', type: 'button', onclick: () => { $('imgPrompt').value = item.prompt; this.upd(); $('imgPrompt').focus(); } }, 'Reuse prompt'),
+        el('button', { class: 'ghost-btn', type: 'button', 'aria-label': 'Delete this image from My creations', onclick: () => Gallery.remove(this, item) }, 'Delete'),
         el('span', { class: 'stage-caption', title: item.engineLabel + ' · ' + item.prompt, text: [item.engineLabel, item.extras && item.extras.note, U.formatBytes(item.blob.size)].filter(Boolean).join(' · ') })
       );
       this.renderAlso(item);
-      historyStrip($('imgHistory'), this.history, item, (it) => this.show(it));
+      Gallery.render(this);
     },
     /** One-click "try the same prompt with another engine". */
     renderAlso(item) {
@@ -603,8 +610,8 @@
   const MUSIC_LABEL = { auto: 'Auto', calm: 'Calm', upbeat: 'Upbeat', epic: 'Epic', mystery: 'Mystery', off: 'Off' };
 
   const Video = {
-    ratio: '16:9', duration: 6, style: 'Cinematic', music: 'auto', engineId: null, history: [], current: null, ctl: null, raf: 0,
-    ids: { grid: 'vidEngines', more: 'vidMore', moreSummary: 'vidMoreSummary', locked: 'vidLocked' },
+    kind: 'video', ratio: '16:9', duration: 6, style: 'Cinematic', music: 'auto', engineId: null, history: [], current: null, ctl: null, raf: 0, confirmClear: false,
+    ids: { grid: 'vidEngines', more: 'vidMore', moreSummary: 'vidMoreSummary', locked: 'vidLocked', galleryHead: 'vidGalleryHead', history: 'vidHistory' },
     init() {
       this.upd = counter($('vidPrompt'), $('vidCount'));
       chipGroup($('vidStyles'), Object.keys(VIDEO_STYLES), () => this.style, (v) => { this.style = v; });
@@ -700,6 +707,12 @@
       $('vidActions').innerHTML = '';
       this.visible(view === 'video');
     },
+    /** Back to the live example (nothing left in My creations). */
+    resetStage() {
+      this.current = null;
+      this.restoreStage();
+      Gallery.render(this);
+    },
     async generate() {
       const prompt = $('vidPrompt').value.trim();
       if (!prompt) { toast('Describe the clip you want first.'); $('vidPrompt').focus(); return; }
@@ -737,8 +750,8 @@
           },
           onProgress: (p) => { $('vidTag').textContent = 'Recording · ' + Math.min(100, Math.round(p * 100)) + '%'; },
         });
-        const item = Object.assign(out, { url: URL.createObjectURL(out.blob), prompt, ratio, seconds: duration, engineId: engine.id, engineLabel: engine.label });
-        pushHistory(this.history, item);
+        const item = Object.assign(out, { id: newId(), createdAt: Date.now(), url: URL.createObjectURL(out.blob), prompt, ratio, seconds: duration, engineId: engine.id, engineLabel: engine.label });
+        Gallery.add(this, item);
         this.show(item);
       } catch (e) {
         handleAiError(e);
@@ -768,9 +781,147 @@
         el('button', { class: 'save-btn', type: 'button', html: ICON.download + '<span>' + item.ext.toUpperCase() + '</span>', onclick: () => saveBlob(item.blob, U.slug(x.title || item.prompt, 'alembic-clip') + '.' + item.ext) }),
         x.shader ? el('button', { class: 'ghost-btn', type: 'button', onclick: () => copyText(x.shader) }, 'Copy shader') : null,
         el('button', { class: 'ghost-btn', type: 'button', onclick: () => { $('vidPrompt').value = item.prompt; this.upd(); $('vidPrompt').focus(); } }, 'Reuse prompt'),
+        el('button', { class: 'ghost-btn', type: 'button', 'aria-label': 'Delete this clip from My creations', onclick: () => Gallery.remove(this, item) }, 'Delete'),
         el('span', { class: 'stage-caption', title: item.engineLabel + ' · ' + item.prompt, text: [item.engineLabel, item.seconds + ' s', sound, U.formatBytes(item.blob.size)].join(' · ') })
       );
-      historyStrip($('vidHistory'), this.history, item, (it) => this.show(it));
+      Gallery.render(this);
+    },
+  };
+
+  /* ====================================================== MY CREATIONS */
+  // Each studio's history doubles as "My creations": kept in this browser (IndexedDB) when it
+  // allows, so it survives a reload; otherwise only until the tab closes.
+  let storageWarned = false;
+  const Gallery = {
+    ok: false,
+    /** Load saved creations into both studios (merging with anything made meanwhile). */
+    async init() {
+      this.ok = await A.gallery.available();
+      for (const st of [Img, Video]) {
+        if (this.ok) {
+          let saved = [];
+          try { saved = await A.gallery.list(st.kind); } catch (_) { saved = []; }
+          const have = new Set(st.history.map((it) => it.id));
+          for (const rec of saved) {
+            if (have.has(rec.id)) continue;
+            rec.extras = rec.extras || {};
+            rec.url = URL.createObjectURL(rec.blob);
+            st.history.push(rec);
+          }
+          st.history.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+          this.trim(st);
+        }
+        if (!st.current && !st.ctl && st.history.length) st.show(st.history[0]);
+        else this.render(st);
+      }
+    },
+    trim(st) {
+      while (st.history.length > HISTORY_MAX) {
+        const old = st.history.pop();
+        if (old.url) URL.revokeObjectURL(old.url);
+        if (this.ok) A.gallery.remove(old.id).catch(() => {});
+      }
+    },
+    /** A new creation: newest first, and saved in this browser. */
+    add(st, item) {
+      st.history.unshift(item);
+      this.trim(st);
+      A.gallery.available().then((ok) => ok && A.gallery.put(item)).catch((e) => {
+        if (storageWarned) return;
+        storageWarned = true;
+        toast((e && e.name === 'QuotaExceededError' ? 'Your browser storage is full, so' : 'This browser would not store it, so') +
+          ' new creations stay only until you close this tab. Download them, or delete old ones.', { bad: true, ms: 8000 });
+      });
+    },
+    busy(st) {
+      // A built-in clip records from the canvas on stage: leave it alone until it is done.
+      if (st.kind === 'video' && st.ctl) { toast('Wait until this clip is finished.'); return true; }
+      return false;
+    },
+    remove(st, item) {
+      const i = st.history.indexOf(item);
+      if (i === -1 || this.busy(st)) return;
+      st.history.splice(i, 1);
+      if (this.ok) A.gallery.remove(item.id).catch(() => {});
+      if (st.current === item) {
+        const next = st.history[Math.min(i, st.history.length - 1)];
+        if (next) st.show(next);
+        else st.resetStage();
+      } else this.render(st);
+      toast('Deleted from My creations.', { ms: 6000, action: { label: 'Undo', run: () => this.undo(st, item) } });
+      setTimeout(() => {
+        if (!st.history.includes(item) && item.url) { URL.revokeObjectURL(item.url); item.url = null; }
+      }, 6500);
+    },
+    undo(st, item) {
+      if (st.history.includes(item) || this.busy(st)) return;
+      if (!item.url) item.url = URL.createObjectURL(item.blob);
+      st.history.push(item);
+      st.history.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      if (this.ok) A.gallery.put(item).catch(() => {});
+      st.show(item);
+    },
+    clear(st) {
+      if (this.busy(st)) return;
+      const items = st.history.splice(0);
+      st.confirmClear = false;
+      if (this.ok) A.gallery.clear(st.kind).catch(() => {});
+      for (const it of items) if (it.url) URL.revokeObjectURL(it.url);
+      st.resetStage();
+      toast('Deleted all ' + (st.kind === 'image' ? 'images' : 'videos') + ' from My creations.');
+    },
+    /** Every creation of a studio in one zip, oldest first, with a prompts.md index. */
+    async zip(st, btn) {
+      const items = st.history.slice().reverse();
+      if (!items.length) return;
+      const label = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Zipping…';
+      try {
+        const JSZip = await A.libs.jszip();
+        const zip = new JSZip();
+        const rows = [];
+        items.forEach((it, i) => {
+          const x = it.extras || {};
+          const base = String(i + 1).padStart(2, '0') + '-' + U.slug(x.title || it.prompt, st.kind);
+          zip.file(base + '.' + it.ext, it.blob);
+          if (x.svg) zip.file(base + '.svg', x.svg);
+          const cell = (v) => String(v || '').replace(/\s+/g, ' ').replace(/\|/g, '\\|');
+          rows.push('| ' + [base + '.' + it.ext, it.engineLabel, new Date(it.createdAt || Date.now()).toLocaleString(), it.prompt].map(cell).join(' | ') + ' |');
+        });
+        const plural = st.kind === 'image' ? 'images' : 'videos';
+        zip.file('prompts.md', '# Alembic ' + plural + '\n\n| File | Engine | Made | Prompt |\n|---|---|---|---|\n' + rows.join('\n') + '\n');
+        const blob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
+        await saveBlob(blob, 'alembic-' + plural + '.zip');
+      } catch (e) {
+        toast(A.friendlyError(e), { bad: true });
+      } finally {
+        btn.disabled = false;
+        btn.textContent = label;
+      }
+    },
+    /** The history strip and its "My creations" header (count, size, Download all, Clear). */
+    render(st) {
+      historyStrip($(st.ids.history), st.history, st.current, (it) => { if (!this.busy(st)) st.show(it); });
+      const head = $(st.ids.galleryHead);
+      const n = st.history.length;
+      head.hidden = !n;
+      if (!n) { st.confirmClear = false; head.replaceChildren(); return; }
+      const noun = n === 1 ? st.kind : st.kind === 'image' ? 'images' : 'videos';
+      const size = st.history.reduce((t, it) => t + (it.blob ? it.blob.size : 0), 0);
+      const tools = st.confirmClear
+        ? [
+          el('button', { class: 'ghost-btn danger', type: 'button', dataset: { key: 'yes' }, onclick: () => this.clear(st) }, 'Delete all ' + n),
+          el('button', { class: 'ghost-btn', type: 'button', dataset: { key: 'keep' }, onclick: () => { st.confirmClear = false; this.render(st); head.querySelector('[data-key="clear"]').focus(); } }, 'Keep them'),
+        ]
+        : [
+          el('button', { class: 'ghost-btn', type: 'button', dataset: { key: 'zip' }, onclick: (e) => this.zip(st, e.currentTarget) }, 'Download all'),
+          el('button', { class: 'ghost-btn', type: 'button', dataset: { key: 'clear' }, onclick: () => { st.confirmClear = true; this.render(st); head.querySelector('[data-key="keep"]').focus(); } }, 'Clear'),
+        ];
+      fill(head,
+        el('h2', { text: 'My creations' }),
+        el('span', { class: 'fine', text: n + ' ' + noun + ' · ' + U.formatBytes(size) + ' · ' + (this.ok ? 'kept in this browser' : 'this session only') }),
+        el('div', { class: 'gallery-tools', role: 'group', 'aria-label': 'My creations' }, tools));
     },
   };
 
@@ -1101,6 +1252,7 @@
   Img.init();
   Video.init();
   Sum.init();
+  Gallery.init();
   route();
   renderAiStatus();
   renderAccessPanel();
@@ -1111,5 +1263,5 @@
     Video.refresh();
     Sum.refreshAi();
   });
-  A.app = { Img, Video, Sum, go };
+  A.app = { Img, Video, Sum, Gallery, go };
 })();
