@@ -11,7 +11,7 @@ import { generateText, streamText } from './lib/providers/text.js';
 import { generateImage } from './lib/providers/image.js';
 import { startVideo, cancelVideo, getJob, publicJob } from './lib/providers/video.js';
 import { uploadToGemini, mediaMime } from './lib/providers/files.js';
-import { publicEngine } from './lib/catalog.js';
+import { publicEngine, estimateCost } from './lib/catalog.js';
 
 const major = Number(process.versions.node.split('.')[0]);
 if (major < 18) {
@@ -101,6 +101,31 @@ function allow(ip) {
 }
 setInterval(() => { const now = Date.now(); for (const [ip, b] of buckets) if (now - b.start > 120000) buckets.delete(ip); }, 60000).unref();
 
+/*
+ * Daily spending limit (MAX_SPEND_PER_DAY, USD). Each real image/video call sets aside its
+ * estimated cost from lib/catalog.js first (unknown prices count as the fallback below) and is
+ * refused if that would pass the limit. A failed call gives its estimate back; a stopped video
+ * does not, because the provider may still bill part of it. Resets at midnight UTC.
+ */
+const FALLBACK_COST = { image: 0.05, videoSecond: 0.2 };
+const spend = { day: '', usd: 0 };
+const utcDay = () => new Date().toISOString().slice(0, 10);
+function reserve(engine, kind, duration) {
+  if (!cfg.maxSpendPerDay) return 0;
+  if (spend.day !== utcDay()) { spend.day = utcDay(); spend.usd = 0; }
+  let cost = estimateCost(engine, { duration });
+  if (cost === null) cost = kind === 'image' ? FALLBACK_COST.image : FALLBACK_COST.videoSecond * duration;
+  if (spend.usd + cost > cfg.maxSpendPerDay + 1e-9) {
+    const hours = Math.ceil((Date.parse(utcDay() + 'T00:00:00Z') + 86400000 - Date.now()) / 3600000);
+    throw new ProviderError('budget', `Today's spending limit for this site (MAX_SPEND_PER_DAY) is used up. It resets at midnight UTC, in about ${hours} h.`, 429);
+  }
+  spend.usd += cost;
+  return cost;
+}
+function refund(cost) {
+  if (cost && spend.day === utcDay()) spend.usd = Math.max(0, spend.usd - cost);
+}
+
 function prompt(p, max) {
   if (typeof p !== 'string' || !p.trim()) throw new ProviderError('bad_request', 'Write a prompt first.', 400);
   return p.trim().slice(0, max);
@@ -116,6 +141,7 @@ function health() {
     name: 'Alembic',
     version: VERSION,
     requiresAccessCode: !!cfg.accessCode,
+    budget: cfg.maxSpendPerDay ? { limit: cfg.maxSpendPerDay, spent: spend.day === utcDay() ? Math.round(spend.usd * 10000) / 10000 : 0, resets: 'midnight UTC' } : null,
     text: t ? { provider: t.provider, label: t.label, model: t.model, vision: t.vision, maxImages: t.maxImages, media: t.media, maxUploadMB: t.media ? cfg.maxUploadMB : 0 } : null,
     engines: {
       image: cfg.imageCatalog.map(publicEngine),
@@ -231,8 +257,16 @@ async function handleApi(req, res, route) {
     const body = await readJson(req);
     const engine = cfg.imageEngines.find((e) => e.id === body.engine) || cfg.imageEngines[0];
     if (!engine) throw new ProviderError('no_ai', 'Image generation is off. Add FAL_KEY, CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN, REPLICATE_API_TOKEN or OPENAI_API_KEY to .env and restart the server.', 503);
+    const text = prompt(body.prompt, 2000);
+    const cost = reserve(engine, 'image');
     const t0 = Date.now();
-    const img = await generateImage(cfg, engine, { prompt: prompt(body.prompt, 2000), aspect: body.aspect });
+    let img;
+    try {
+      img = await generateImage(cfg, engine, { prompt: text, aspect: body.aspect });
+    } catch (e) {
+      refund(cost);
+      throw e;
+    }
     log('image', engine.label, t0);
     return sendJson(res, 200, { images: [img], model: engine.label });
   }
@@ -248,7 +282,9 @@ async function handleApi(req, res, route) {
       const can = cfg.videoEngines.filter((e) => e.i2vModel).map((e) => e.label);
       throw new ProviderError('bad_request', `${engine.label} cannot start from a picture.` + (can.length ? ' Pick ' + can.join(', ') + ' to animate it.' : ''), 400);
     }
-    const job = startVideo(cfg, engine, { prompt: prompt(body.prompt, 2000), aspect, duration, image });
+    const text = prompt(body.prompt, 2000);
+    const cost = reserve(engine, 'video', duration);
+    const job = startVideo(cfg, engine, { prompt: text, aspect, duration, image }, () => refund(cost));
     console.log(`[${new Date().toISOString().slice(11, 19)}] video started ${engine.label}${image ? ' from a picture' : ''} ${job.id}`);
     return sendJson(res, 202, publicJob(job));
   }

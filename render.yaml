@@ -21,3 +21,5 @@ services:
         sync: false
       - key: ACCESS_CODE
         sync: false
+      - key: MAX_SPEND_PER_DAY
+        value: "2"

@@ -187,7 +187,8 @@
         el('ul', null,
           el('li', null, 'Text: ', s.text ? s.text.label + ' (' + s.text.model + ')' : 'off. Add GEMINI_API_KEY, ANTHROPIC_API_KEY or OPENAI_API_KEY'),
           el('li', { text: 'Image engines on: ' + count('image') }),
-          el('li', { text: 'Video engines on: ' + count('video') })
+          el('li', { text: 'Video engines on: ' + count('video') }),
+          s.budget ? el('li', { text: 'Spending limit: ' + A.engines.money(s.budget.spent) + ' of ' + A.engines.money(s.budget.limit) + ' used today (when the page loaded)' }) : null
         ),
         el('p', { class: 'fine', text: 'Keys live in the .env file next to server.js. Restart the server after changing them.' })
       );
@@ -264,7 +265,8 @@
     el('span', { class: 'engine-name', text: e.label }),
     el('span', { class: 'engine-by', text: e.providerLabel || '' }),
     el('span', { class: 'engine-best', text: e.bestFor || '' }),
-    badges.length ? el('span', { class: 'engine-badges' }, badges) : null);
+    badges.length ? el('span', { class: 'engine-badges' }, badges) : null,
+    !e.local && e.price ? el('span', { class: 'engine-price', text: A.engines.priceLabel(e) }) : null);
   }
 
   /** Engine cards for available engines; locked ones grouped by provider. */
@@ -378,6 +380,11 @@
   }
   function pick(list) {
     return list[Math.floor(Math.random() * list.length)];
+  }
+  /** Generate button text, with the rough cost of a run on paid engines ("· about $0.42"). */
+  function goLabel(btn, text, engine, opts) {
+    const usd = engine && !engine.local ? A.engines.estimate(engine, opts) : null;
+    btn.textContent = usd ? text + ' · about ' + A.engines.money(usd) : text;
   }
   function ideaFamily(engineId) {
     if (!engineId) return 'default';
@@ -497,6 +504,7 @@
       renderEngines('image', this, this.ids);
       this.onEngine();
       $('imgGo').disabled = !this.engine() || !!this.ctl;
+      goLabel($('imgGo'), '✦ Generate image', this.engine(), {});
     },
     async generate() {
       const prompt = $('imgPrompt').value.trim();
@@ -660,6 +668,7 @@
       if (allowed && !allowed.includes(this.ratio)) this.ratio = allowed[0];
       ratioGroup($('vidRatios'), ['16:9', '9:16', '1:1'], () => this.ratio, (r) => { this.ratio = r; }, allowed);
       $('vidMusicField').hidden = !(e && e.soundtrack);
+      goLabel($('vidGo'), '✦ Generate video', e, { duration: this.duration });
     },
     onEngine() {
       this.renderOptions();

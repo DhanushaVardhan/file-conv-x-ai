@@ -99,6 +99,7 @@ Copy the folder, set the same environment variables, and run `node server.js` (k
 
 - `ACCESS_CODE=some-secret-phrase` makes visitors type the code once before AI features work.
 - `AI_REQUESTS_PER_MINUTE=30` limits each visitor.
+- `MAX_SPEND_PER_DAY=2` stops real image and video models once about $2 of estimated cost has been used that day (UTC). The estimates come from each provider's list price (shown on the engine cards and the Generate button); engines without a known price count as $0.05 an image or $0.20 a second.
 - Set monthly spending limits in every provider's billing settings.
 
 ## 5. Install it like an app

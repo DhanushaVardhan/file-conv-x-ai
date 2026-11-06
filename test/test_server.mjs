@@ -325,6 +325,23 @@ await withServer({ GEMINI_API_KEY: 'gk', GEMINI_TEXT_MODEL: 'missing-model', FAL
   const f = await post(B, '/api/ai/image', { prompt: 'x', engine: 'fal:flux-schnell' });
   ok(f.status === 502 && f.data.error.code === 'bad_key' && /FAL_KEY/.test(f.data.error.message), 'bad fal key explained');
 });
+console.log('E. Prices and the daily spending limit');
+await withServer({ FAL_KEY: 'fk', MAX_SPEND_PER_DAY: '0.05' }, 4109, async (B) => {
+  const h0 = (await get(B, '/api/health')).data;
+  ok(h0.budget && h0.budget.limit === 0.05 && h0.budget.spent === 0, 'health shows the daily spending limit');
+  const priced = (k) => h0.engines[k].filter((e) => e.price).map((e) => e.id + ' ' + e.price.usd).join(', ');
+  ok(h0.engines.image.find((e) => e.id === 'fal:seedream').price.usd === 0.035 && h0.engines.video.find((e) => e.id === 'fal:grok-video').price.per === 'second', 'engines carry list prices: ' + priced('video'));
+  ok(/17 November 2026/.test(h0.engines.video.find((e) => e.id === 'fal:veo-3.1-fast').note), 'Veo 3.1 Fast warns that fal retires it on 17 Nov 2026');
+  const a = await post(B, '/api/ai/image', { prompt: 'x', engine: 'fal:seedream', aspect: '1:1' });
+  const b = await post(B, '/api/ai/image', { prompt: 'x', engine: 'fal:seedream', aspect: '1:1' });
+  ok(a.status === 200 && b.status === 429 && b.data.error.code === 'budget' && /MAX_SPEND_PER_DAY/.test(b.data.error.message), 'a second $0.035 Seedream image would pass $0.05: refused');
+  const fail = await post(B, '/api/ai/image', { prompt: 'fail please', engine: 'fal:flux-schnell', aspect: '1:1' });
+  const c = await post(B, '/api/ai/image', { prompt: 'x', engine: 'fal:flux-schnell', aspect: '1:1' });
+  const h1 = (await get(B, '/api/health')).data;
+  ok(fail.status === 502 && c.status === 200 && Math.abs(h1.budget.spent - 0.041) < 1e-9, 'a failed call is given back; spent today $' + h1.budget.spent);
+  const v = await post(B, '/api/ai/video', { prompt: 'x', engine: 'fal:grok-video', duration: 6 });
+  ok(v.status === 429 && /resets at midnight UTC/.test(v.data.error.message), 'a 6 s Grok clip (about $0.42) is refused before it starts');
+});
 await withServer({ CLOUDFLARE_ACCOUNT_ID: 'acct1', CLOUDFLARE_API_TOKEN: 'nope', IMAGE_PROVIDER: 'cloudflare' }, 4107, async (B) => {
   const h = (await get(B, '/api/health')).data;
   ok(avail(h, 'image') === 'cloudflare:lucid,cloudflare:flux', 'IMAGE_PROVIDER narrows the list');

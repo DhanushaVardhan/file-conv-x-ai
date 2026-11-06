@@ -247,6 +247,27 @@
     return list(kind).find((e) => e.id === id) || null;
   }
 
+  /** Rough USD cost of one run (same rule as lib/catalog.js estimateCost), or null if unknown. */
+  function estimate(engine, { duration } = {}) {
+    const p = engine && engine.price;
+    if (!p) return null;
+    return p.per === 'second' ? p.usd * (duration || (engine.durations && engine.durations[0]) || 5) : p.usd;
+  }
+  /** $0.006, $0.035, $0.42, $2.10: three decimals under a dollar, without a trailing third zero. */
+  function money(usd) {
+    let s = usd.toFixed(usd < 1 ? 3 : 2);
+    if (/\.\d\d0$/.test(s)) s = s.slice(0, -1);
+    return '$' + s;
+  }
+  /** Short price line for an engine card, e.g. "$0.07 a second", "about $0.006 an image". */
+  function priceLabel(engine) {
+    const p = engine && engine.price;
+    if (!p) return '';
+    if (!p.usd) return 'Free';
+    const each = (p.approx ? 'about ' : '') + money(p.usd) + (p.per === 'second' ? ' a second' : ' an image');
+    return p.freeDaily ? 'Free daily allowance, then ' + each : each;
+  }
+
   /** Run an engine. ctx: {prompt, style, aspect, duration, music, image, signal, onStage, onCanvas, onProgress, onStep, shaderCode} */
   async function run(engine, ctx) {
     const noop = () => {};
@@ -258,5 +279,5 @@
     return engine.kind === 'image' ? runServerImage(engine, c) : runServerVideo(engine, c);
   }
 
-  A.engines = { list, find, run, LOCAL };
+  A.engines = { list, find, run, estimate, money, priceLabel, LOCAL };
 })();

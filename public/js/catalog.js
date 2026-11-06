@@ -20,6 +20,11 @@ window.ALEMBIC_CATALOG = {
    ],
    "audio": false,
    "fromImage": false,
+   "price": {
+    "usd": 0.006,
+    "per": "image",
+    "approx": true
+   },
    "available": false,
    "needs": [
     "FAL_KEY"
@@ -44,6 +49,10 @@ window.ALEMBIC_CATALOG = {
    ],
    "audio": false,
    "fromImage": false,
+   "price": {
+    "usd": 0.035,
+    "per": "image"
+   },
    "available": false,
    "needs": [
     "FAL_KEY"
@@ -67,6 +76,12 @@ window.ALEMBIC_CATALOG = {
    ],
    "audio": false,
    "fromImage": false,
+   "price": {
+    "usd": 0.03,
+    "per": "image",
+    "approx": true,
+    "freeDaily": true
+   },
    "available": false,
    "needs": [
     "CLOUDFLARE_ACCOUNT_ID",
@@ -89,6 +104,12 @@ window.ALEMBIC_CATALOG = {
    ],
    "audio": false,
    "fromImage": false,
+   "price": {
+    "usd": 0.001,
+    "per": "image",
+    "approx": true,
+    "freeDaily": true
+   },
    "available": false,
    "needs": [
     "CLOUDFLARE_ACCOUNT_ID",
@@ -114,6 +135,11 @@ window.ALEMBIC_CATALOG = {
    ],
    "audio": false,
    "fromImage": false,
+   "price": {
+    "usd": 0.03,
+    "per": "image",
+    "approx": true
+   },
    "available": false,
    "needs": [
     "REPLICATE_API_TOKEN"
@@ -137,6 +163,7 @@ window.ALEMBIC_CATALOG = {
    ],
    "audio": false,
    "fromImage": false,
+   "price": null,
    "available": false,
    "needs": [
     "REPLICATE_API_TOKEN"
@@ -160,6 +187,7 @@ window.ALEMBIC_CATALOG = {
    ],
    "audio": false,
    "fromImage": false,
+   "price": null,
    "available": false,
    "needs": [
     "OPENAI_API_KEY"
@@ -183,6 +211,7 @@ window.ALEMBIC_CATALOG = {
    ],
    "audio": false,
    "fromImage": false,
+   "price": null,
    "available": false,
    "needs": [
     "GEMINI_API_KEY",
@@ -207,6 +236,7 @@ window.ALEMBIC_CATALOG = {
    ],
    "audio": false,
    "fromImage": false,
+   "price": null,
    "available": false,
    "needs": [
     "POLLINATIONS_API_KEY"
@@ -231,6 +261,10 @@ window.ALEMBIC_CATALOG = {
    ],
    "audio": false,
    "fromImage": false,
+   "price": {
+    "usd": 0,
+    "per": "image"
+   },
    "note": "The free demo engine is slow and small. Add any image key for better pictures.",
    "available": false,
    "needs": []
@@ -260,6 +294,10 @@ window.ALEMBIC_CATALOG = {
    ],
    "audio": true,
    "fromImage": true,
+   "price": {
+    "usd": 0.07,
+    "per": "second"
+   },
    "available": false,
    "needs": [
     "FAL_KEY"
@@ -289,6 +327,10 @@ window.ALEMBIC_CATALOG = {
    ],
    "audio": true,
    "fromImage": true,
+   "price": {
+    "usd": 0.3034,
+    "per": "second"
+   },
    "available": false,
    "needs": [
     "FAL_KEY"
@@ -316,6 +358,11 @@ window.ALEMBIC_CATALOG = {
    ],
    "audio": true,
    "fromImage": true,
+   "price": {
+    "usd": 0.15,
+    "per": "second"
+   },
+   "note": "fal.ai says it will remove Veo 3.1 Fast on 17 November 2026. Pick another engine if it stops working.",
    "available": false,
    "needs": [
     "FAL_KEY"
@@ -344,6 +391,10 @@ window.ALEMBIC_CATALOG = {
    ],
    "audio": false,
    "fromImage": false,
+   "price": {
+    "usd": 0.02,
+    "per": "second"
+   },
    "available": false,
    "needs": [
     "REPLICATE_API_TOKEN"
@@ -368,6 +419,10 @@ window.ALEMBIC_CATALOG = {
    ],
    "audio": false,
    "fromImage": false,
+   "price": {
+    "usd": 0.08,
+    "per": "second"
+   },
    "available": false,
    "needs": [
     "REPLICATE_API_TOKEN"
@@ -395,6 +450,7 @@ window.ALEMBIC_CATALOG = {
    ],
    "audio": true,
    "fromImage": false,
+   "price": null,
    "available": false,
    "needs": [
     "REPLICATE_API_TOKEN"
@@ -422,6 +478,7 @@ window.ALEMBIC_CATALOG = {
    ],
    "audio": true,
    "fromImage": false,
+   "price": null,
    "available": false,
    "needs": [
     "GEMINI_API_KEY",
