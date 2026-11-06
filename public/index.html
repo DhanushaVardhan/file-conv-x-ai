@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#141a2c">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<!-- page:head -->
+<title>Alembic</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="AI image and video studio with several engines, plus AI summaries of PDF, Word, Excel, PowerPoint, image and video files.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Figtree:ital,wght@0,400..700;1,400..600&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="styles.css">
+<!-- /page:head -->
+</head>
+<body>
+<!-- page:body -->
+<div class="atmos" aria-hidden="true"></div>
+
+<header class="bar">
+  <div class="bar-in">
+    <a class="brand" href="#image" aria-label="Alembic home">
+      <svg class="mark" viewBox="0 0 32 32" aria-hidden="true">
+        <defs>
+          <linearGradient id="markFill" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#e8475a"/><stop offset="0.35" stop-color="#e99300"/><stop offset="0.65" stop-color="#0b9c9c"/><stop offset="1" stop-color="#6f45ff"/>
+          </linearGradient>
+        </defs>
+        <path d="M12.5 3h7v2h-1.2v6.1a10 10 0 1 1-4.6 0V5h-1.2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M8.2 19.5h15.6a8 8 0 0 1-15.6 0z" fill="url(#markFill)"/>
+        <circle cx="13" cy="15.5" r="1.3" fill="#e99300"/><circle cx="18.6" cy="13" r="0.9" fill="#0b9c9c"/>
+      </svg>
+      <span class="word">Alembic</span>
+    </a>
+    <nav class="tabs" id="tabs" role="tablist" aria-label="Sections">
+      <a class="tab" role="tab" id="tab-image" href="#image" aria-controls="view-image" aria-selected="true"><span class="spark" aria-hidden="true">✦</span>Image</a>
+      <a class="tab" role="tab" id="tab-video" href="#video" aria-controls="view-video" aria-selected="false"><span class="spark" aria-hidden="true">✦</span>Video</a>
+      <a class="tab" role="tab" id="tab-summary" href="#summary" aria-controls="view-summary" aria-selected="false"><span class="spark" aria-hidden="true">✦</span>Summary</a>
+      <span class="tab-ink" id="tabInk" aria-hidden="true"></span>
+    </nav>
+    <div class="bar-end">
+      <button class="ai-pill" id="aiPill" type="button" aria-expanded="false" aria-controls="aiPop" data-state="off">
+        <span class="dot" aria-hidden="true"></span><span id="aiPillText">Checking AI…</span>
+      </button>
+      <button class="icon-btn" id="themeBtn" type="button" aria-label="Switch between light and dark" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      </button>
+      <div class="ai-pop" id="aiPop" hidden></div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+    <div id="accessPanel" class="panel access" hidden>
+      <strong>This site needs an access code for AI features.</strong>
+      <form id="accessForm">
+        <label class="sr" for="accessInput">Access code</label>
+        <input id="accessInput" type="password" autocomplete="off" placeholder="Enter the access code">
+        <button class="ghost-btn" type="submit">Save code</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ======================================================= AI IMAGE -->
+  <section class="view" id="view-image" role="tabpanel" aria-labelledby="tab-image">
+    <div class="wrap">
+      <div class="studio-head">
+        <p class="eyebrow ai">✦ AI Image Studio</p>
+        <h1>Describe a picture. Pick an engine. <span class="shine">Watch it appear.</span></h1>
+        <p class="lede">Each engine draws differently: vector illustration, GPU-painted scenes, pixel art, and real photo models like FLUX, Seedream and GPT Image when you add API keys.</p>
+      </div>
+      <div class="studio-grid">
+        <form class="panel studio-controls" id="imgForm" novalidate>
+          <div class="prompt-box">
+            <label class="field-label" for="imgPrompt">Prompt</label>
+            <textarea id="imgPrompt" maxlength="1500" placeholder="A paper boat on a still lake at golden hour, mist over the water, warm light"></textarea>
+            <div class="prompt-tools">
+              <button class="chip-btn" type="button" id="imgEnhance">✦ Improve prompt</button>
+              <button class="chip-btn plain" type="button" id="imgSurprise">Surprise me</button>
+              <span class="count" id="imgCount">0 / 1500</span>
+            </div>
+          </div>
+          <fieldset class="field">
+            <legend>Engine</legend>
+            <div class="engines" id="imgEngines" role="radiogroup" aria-label="Image engine"></div>
+            <details class="more-engines" id="imgMore" hidden>
+              <summary id="imgMoreSummary">More engines</summary>
+              <div class="locked-list" id="imgLocked"></div>
+            </details>
+          </fieldset>
+          <fieldset class="field">
+            <legend>Style</legend>
+            <div class="chips" id="imgStyles" role="radiogroup" aria-label="Style"></div>
+          </fieldset>
+          <fieldset class="field">
+            <legend>Shape</legend>
+            <div class="ratios" id="imgRatios" role="radiogroup" aria-label="Shape"></div>
+          </fieldset>
+          <button class="run-btn ai" id="imgGo" type="submit">✦ Generate image</button>
+          <div class="notice" id="imgNotice" hidden></div>
+        </form>
+        <div class="stage-col">
+          <div class="stage" id="imgStage" data-ratio="1:1">
+            <div class="stage-media" id="imgMedia"></div>
+            <span class="stage-tag" id="imgTag">Example</span>
+            <div class="stage-busy" id="imgBusy" hidden>
+              <div class="orbit" aria-hidden="true"></div>
+              <strong id="imgBusyTitle">Mixing colours…</strong>
+              <span class="elapsed" id="imgElapsed">0 s</span>
+              <button class="ghost-btn" type="button" id="imgStop">Stop</button>
+            </div>
+          </div>
+          <div class="stage-actions" id="imgActions"></div>
+          <div class="history" id="imgHistory" aria-label="Images from this session"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================= AI VIDEO -->
+  <section class="view" id="view-video" role="tabpanel" aria-labelledby="tab-video" hidden>
+    <div class="wrap">
+      <div class="studio-head">
+        <p class="eyebrow ai">✦ AI Video Studio</p>
+        <h1>Turn a sentence into a <span class="shine">moving clip.</span></h1>
+        <p class="lede">Motion graphics, GPU shader films and captioned story reels with their own soundtrack, or real AI footage from Veo, Seedance and Grok Imagine when you add API keys.</p>
+      </div>
+      <div class="studio-grid">
+        <form class="panel studio-controls" id="vidForm" novalidate>
+          <div class="prompt-box">
+            <label class="field-label" for="vidPrompt">Prompt</label>
+            <textarea id="vidPrompt" maxlength="1500" placeholder="Fireflies rising over a dark forest lake while the moon comes up"></textarea>
+            <div class="prompt-tools">
+              <button class="chip-btn" type="button" id="vidEnhance">✦ Improve prompt</button>
+              <button class="chip-btn plain" type="button" id="vidSurprise">Surprise me</button>
+              <span class="count" id="vidCount">0 / 1500</span>
+            </div>
+          </div>
+          <fieldset class="field">
+            <legend>Engine</legend>
+            <div class="engines" id="vidEngines" role="radiogroup" aria-label="Video engine"></div>
+            <details class="more-engines" id="vidMore" hidden>
+              <summary id="vidMoreSummary">More engines</summary>
+              <div class="locked-list" id="vidLocked"></div>
+            </details>
+          </fieldset>
+          <fieldset class="field">
+            <legend>Style</legend>
+            <div class="chips" id="vidStyles" role="radiogroup" aria-label="Style"></div>
+          </fieldset>
+          <div class="field-row">
+            <fieldset class="field">
+              <legend>Length</legend>
+              <div class="seg" id="vidDurations" role="radiogroup" aria-label="Length"></div>
+            </fieldset>
+            <fieldset class="field">
+              <legend>Shape</legend>
+              <div class="ratios three" id="vidRatios" role="radiogroup" aria-label="Shape"></div>
+            </fieldset>
+          </div>
+          <fieldset class="field" id="vidMusicField">
+            <legend>Soundtrack</legend>
+            <div class="chips" id="vidMusic" role="radiogroup" aria-label="Soundtrack"></div>
+          </fieldset>
+          <button class="run-btn ai" id="vidGo" type="submit">✦ Generate video</button>
+          <div class="notice" id="vidNotice" hidden></div>
+        </form>
+        <div class="stage-col">
+          <div class="stage" id="vidStage" data-ratio="16:9">
+            <div class="stage-media" id="vidMedia"></div>
+            <span class="stage-tag" id="vidTag">Example · live</span>
+            <div class="stage-busy" id="vidBusy" hidden>
+              <div class="orbit" aria-hidden="true"></div>
+              <strong id="vidBusyTitle">Writing the scene…</strong>
+              <div class="steps" id="vidSteps"></div>
+              <span class="elapsed" id="vidElapsed">0 s</span>
+              <button class="ghost-btn" type="button" id="vidStop">Stop</button>
+            </div>
+          </div>
+          <div class="stage-actions" id="vidActions"></div>
+          <div class="history" id="vidHistory" aria-label="Videos from this session"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================== AI SUMMARY -->
+  <section class="view" id="view-summary" role="tabpanel" aria-labelledby="tab-summary" hidden>
+    <div class="wrap">
+      <div class="studio-head">
+        <p class="eyebrow ai">✦ AI Summary</p>
+        <h1>Drop any file. <span class="shine">Get the gist.</span></h1>
+        <p class="lede">PDFs, Word documents, Excel sheets, slide decks, photos and videos become a clear summary, study notes or a to-do list. Then ask follow-up questions.</p>
+      </div>
+
+      <div id="sumIntro">
+        <div class="drop" id="dropzone" tabindex="0" role="button" aria-label="Choose a file to summarize. Drop it here, or press Enter to browse.">
+          <div class="drop-body">
+            <div class="chips-stack" aria-hidden="true">
+              <span class="fchip f1">PDF</span><span class="fchip f2">XLSX</span><span class="fchip f3">MP4</span>
+            </div>
+            <p class="drop-title" id="dropTitle">Drop a file to summarize</p>
+            <p class="drop-sub">or <button class="link-btn" id="browseBtn" type="button">browse your device</button></p>
+            <p class="drop-formats">PDF · DOCX · XLSX · CSV · PPTX · JPG · PNG · MP4 · MOV · WEBM · TXT · MD · code</p>
+          </div>
+        </div>
+        <input type="file" id="fileInput" hidden>
+        <div class="samples">
+          <span class="fine">No file handy? Try a sample:</span>
+          <button class="sample-btn" type="button" data-sample="pdf"><span class="fmt" style="--fam: var(--doc)">PDF</span>Lecture notes</button>
+          <button class="sample-btn" type="button" data-sample="docx"><span class="fmt" style="--fam: var(--media)">DOCX</span>Status report</button>
+          <button class="sample-btn" type="button" data-sample="xlsx"><span class="fmt" style="--fam: var(--img)">XLSX</span>Sales data</button>
+        </div>
+        <ul class="type-grid" aria-label="What each file type gets">
+          <li><b>Documents</b><span>PDF, Word, text and code: key points with page references.</span></li>
+          <li><b>Spreadsheets</b><span>Excel and CSV: totals, highs and lows computed exactly, then explained.</span></li>
+          <li><b>Slides</b><span>PowerPoint: the story of the deck, with speaker notes.</span></li>
+          <li><b>Images</b><span>Photos, charts and screenshots: what they show and any text in them.</span></li>
+          <li><b>Videos</b><span>What happens, with timestamps. With a Gemini key it also listens.</span></li>
+        </ul>
+      </div>
+
+      <div id="sumBench" hidden>
+        <div class="sum-grid">
+          <aside class="panel file-card" id="fileCard">
+            <div class="file-top">
+              <div class="file-thumb" id="fileThumb"></div>
+              <div class="file-id">
+                <p class="file-name" id="fileName">file.pdf</p>
+                <p class="file-type" id="fileType">PDF document</p>
+              </div>
+            </div>
+            <dl class="facts" id="fileFacts"></dl>
+            <div class="frames" id="fileFrames" hidden></div>
+            <div class="read-progress" id="readProgress" hidden>
+              <div class="track"><div class="fill" id="readFill"></div></div>
+              <span class="fine" id="readLabel">Reading…</span>
+            </div>
+            <ul class="warnings" id="fileWarnings"></ul>
+            <div class="file-actions">
+              <button class="ghost-btn" id="changeFile" type="button">Choose another file</button>
+            </div>
+          </aside>
+          <div class="sum-main">
+            <article class="panel sum-out" id="sumOut">
+              <div class="sum-head">
+                <div class="mode-tabs" id="modeTabs" role="tablist" aria-label="Summary style"></div>
+                <div class="sum-opts">
+                  <div class="seg small" id="lengthSeg" role="radiogroup" aria-label="Length"></div>
+                  <label class="sr" for="langSelect">Language</label>
+                  <select id="langSelect" class="small-select"></select>
+                </div>
+              </div>
+              <div class="sum-body" id="sumBody" aria-live="polite"></div>
+              <div class="sum-actions" id="sumActions"></div>
+            </article>
+            <section class="panel data-glance" id="dataGlance" hidden>
+              <h3>Data at a glance <span class="fine">computed in your browser</span></h3>
+              <div id="dataTables"></div>
+            </section>
+            <section class="panel chat" id="chat">
+              <h3>Ask about this file</h3>
+              <div class="chat-log" id="chatLog" aria-live="polite"></div>
+              <div class="chips suggest" id="chatSuggest"></div>
+              <form class="chat-form" id="chatForm">
+                <label class="sr" for="chatInput">Your question</label>
+                <input id="chatInput" type="text" maxlength="600" autocomplete="off" placeholder="Ask anything about this file">
+                <button class="run-btn ai small" id="chatSend" type="submit">Ask</button>
+              </form>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Alembic · AI image, video and summaries</span>
+    <span id="footAi">AI: checking…</span>
+  </div>
+</footer>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script src="js/core.js"></script>
+<script src="js/catalog.js"></script>
+<script src="js/markdown.js"></script>
+<script src="js/docx.js"></script>
+<script src="js/readers.js"></script>
+<script src="js/summary.js"></script>
+<script src="js/samples.js"></script>
+<script src="js/vector.js"></script>
+<script src="js/shader.js"></script>
+<script src="js/music.js"></script>
+<script src="js/motion.js"></script>
+<script src="js/engines.js"></script>
+<script src="js/app.js"></script>
+<!-- /page:body -->
+</body>
+</html>

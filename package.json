@@ -1,0 +1,20 @@
+{
+  "name": "alembic",
+  "version": "2.0.0",
+  "description": "AI image and video studio with several engines (built-in and real models), plus AI summaries of any file. Zero dependencies.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node test/test_server.mjs && node tools/build_catalog.mjs --check",
+    "test:ui": "node tools/build_artifact.mjs && python3 test/ui_test.py",
+    "test:e2e": "python3 test/e2e_server.py",
+    "build:catalog": "node tools/build_catalog.mjs",
+    "build:artifact": "node tools/build_artifact.mjs"
+  },
+  "engines": {
+    "node": ">=18.17"
+  },
+  "private": true
+}

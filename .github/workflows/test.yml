@@ -1,0 +1,16 @@
+name: test
+on:
+  push:
+  pull_request:
+jobs:
+  server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check
+        run: for f in server.js lib/*.js lib/providers/*.js public/js/*.js tools/*.mjs test/*.mjs; do node --check "$f"; done
+      - name: Server tests (fake providers, no real keys needed)
+        run: npm test
