@@ -4,6 +4,7 @@ services:
   - type: web
     name: alembic
     runtime: node
+    branch: main
     plan: free
     buildCommand: echo "no dependencies to install"
     startCommand: node server.js

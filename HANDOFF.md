@@ -37,7 +37,7 @@ chat and attached `alembic-v2.zip`.
 
 | Kickoff step | Result |
 |---|---|
-| Put the code on GitHub | Imported unchanged as the first commit (`51cae26`). The repository was empty, so the working branch `ccr-326d7540-dthjis` became its **default branch** (there is no `main` yet; see section 10). |
+| Put the code on GitHub | Imported unchanged as the first commit (`51cae26`). The repository was empty, so the working branch `ccr-326d7540-dthjis` became its **default branch**. At the owner's request the same code was then pushed as `main` (section 10). |
 | 1. Run the tests | The 2.0 code passed all three suites (67 server, 39 UI, 14 end-to-end checks). |
 | 2. Create `.env` | **Not possible in this session.** It ran in a Claude Code cloud container with no keys and no way for the owner to edit a file there. See section 8 for how to add keys. |
 | 3. Verify real providers | **Not done**, because there were no keys. No real provider has been called yet. The request shapes were re-checked against provider docs instead (section 4). |
@@ -337,8 +337,7 @@ Documentation (checked 6 Nov 2026):
    3. Run `npm test`, then commit.
 6. **Render:**
    1. Go to <https://render.com>, then **New → Blueprint**, and pick this repository.
-   2. Render uses the repository's default branch, which is currently `ccr-326d7540-dthjis`.
-      Rename it to `main` first if you like (section 10).
+   2. `render.yaml` deploys the `main` branch.
    3. Enter the keys you have, plus `ACCESS_CODE`, when Render asks.
    4. `MAX_SPEND_PER_DAY` defaults to 2 (USD).
    5. Free instances sleep after 15 minutes without visitors.
@@ -378,10 +377,11 @@ force-push without asking.
 
 - Repository: <https://github.com/DhanushaVardhan/file-conv-x-ai>. It is **public**, so never
   commit keys.
-- The repository was empty before 2.1, so the first pushed branch, `ccr-326d7540-dthjis`, is its
-  default branch. To have a `main` branch, either:
-  - rename it on GitHub (Settings → Branches → rename default branch), or
-  - ask Claude Code to push it as `main`.
+- `main` holds the current code. It was pushed at the owner's request on 6 Nov 2026.
+- The first pushed branch, `ccr-326d7540-dthjis`, stays GitHub's default branch until the owner
+  switches it: **Settings → General → Default branch → `main`**.
+- Claude Code sessions work on their own branch; ask before pushing to `main`.
+- API keys never go on GitHub. README section 3 says where they go.
 - `.env` is in `.gitignore`, so keys never get uploaded. Check with `git status` before
   committing: `.env` must not be listed.
 - CI (`.github/workflows/test.yml`) runs the syntax check and `npm test` on every push and pull

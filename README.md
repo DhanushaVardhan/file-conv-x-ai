@@ -79,6 +79,19 @@ Open `.env`, paste keys after the `=` signs, save, and restart `node server.js`.
 
 **A good start for students:** a free Gemini key (summaries + built-in engines) and a Cloudflare token (free daily image allowance). Add `FAL_KEY` or `REPLICATE_API_TOKEN` with a little credit when you want real video.
 
+**Where your keys go (never on GitHub).** The repository is public, so anything committed there
+can be read by anyone, and bots scan GitHub for keys within minutes. Put keys only here:
+
+- **Your computer:** the `.env` file next to `server.js`. `.gitignore` keeps it out of Git; before
+  committing, check that `git status` does not list `.env`.
+- **Render (your website):** your service's **Environment** tab. Render keeps the values private
+  and restarts the app when you save.
+- **Claude Code on the web:** the cloud environment's settings, as environment variables with the
+  names above. A new session picks them up.
+
+If a key ever lands on GitHub, deleting the file is not enough, because it stays in the history.
+Revoke the key on the provider's site and make a new one.
+
 If you set more than one text key, choose with `TEXT_PROVIDER=gemini|anthropic|openai`. Providers rename and retire models often: if you see *"could not find the model"*, put the current model ID in the matching line of `.env` (all are listed in `.env.example`). Prices change too, so check each provider's pricing page and set a spending limit there.
 
 ## 4. Put it on the internet
