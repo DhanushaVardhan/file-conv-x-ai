@@ -134,8 +134,11 @@
       moveInk();
       Video.visible(want === 'video');
     };
-    if (view && document.startViewTransition && !reduceMotion) document.startViewTransition(apply);
-    else apply();
+    if (view && document.startViewTransition && !reduceMotion) {
+      // On a busy page the browser may skip the animation (the view still switches); that is not an error.
+      const t = document.startViewTransition(apply);
+      for (const p of [t.ready, t.finished, t.updateCallbackDone]) if (p && p.catch) p.catch(() => {});
+    } else apply();
   }
   window.addEventListener('hashchange', route);
   window.addEventListener('resize', moveInk);
