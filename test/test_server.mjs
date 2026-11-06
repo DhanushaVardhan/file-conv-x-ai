@@ -200,6 +200,29 @@ await withServer({ GEMINI_API_KEY: 'gk', REPLICATE_API_TOKEN: 'rt', FAL_KEY: 'fk
     ok(st.status === 'succeeded' && body && check(body), engine + ' video: ' + st.status + (st.error ? ' ' + st.error : '') + ' input ' + JSON.stringify(body && (body.input || body)).slice(0, 110));
     if (!firstUrl && st.url) firstUrl = st.url;
   }
+  // Make it move: start a clip from a picture (image-to-video)
+  const pic = { mime: 'image/png', data: readFileSync(new URL('./fixtures/logo.png', import.meta.url)).toString('base64') };
+  ok(h.engines.video.filter((e) => e.fromImage).map((e) => e.id).join() === 'fal:grok-video,fal:seedance-2,fal:veo-3.1-fast', 'health marks the engines that can animate a picture');
+  const i2vRuns = [
+    ['fal:veo-3.1-fast', 6, /^\/fal\/fal-ai\/veo3\.1\/fast\/image-to-video$/, (bd) => bd.duration === '6s' && bd.generate_audio === true && bd.resolution === '720p'],
+    ['fal:seedance-2', 8, /^\/fal\/bytedance\/seedance-2\.0\/image-to-video$/, (bd) => bd.duration === '8' && bd.generate_audio === true],
+    ['fal:grok-video', 10, /^\/fal\/xai\/grok-imagine-video\/image-to-video$/, (bd) => bd.duration === 10],
+  ];
+  const started = await Promise.all(i2vRuns.map(([engine, duration]) => post(B, '/api/ai/video', { prompt: 'the boat drifts away', engine, aspect: '16:9', duration, image: pic }, H)));
+  for (let k = 0; k < i2vRuns.length; k++) {
+    const [engine, , re, check] = i2vRuns[k];
+    const v = started[k];
+    const st = v.status === 202 ? await waitJob(B, v.data.id, H) : { status: 'not started ' + JSON.stringify(v.data) };
+    const call = lastCall(re);
+    const bd = call && call.body;
+    ok(st.status === 'succeeded' && bd && bd.image_url.startsWith('data:image/png;base64,iVBOR') && bd.aspect_ratio === 'auto' && bd.prompt === 'the boat drifts away' && check(bd),
+      engine + ' image-to-video: ' + st.status + (st.error ? ' ' + st.error : '') + ' ' + JSON.stringify(bd && { ...bd, image_url: bd.image_url.slice(0, 26) + '…' }).slice(0, 150));
+  }
+  const noI2v = await post(B, '/api/ai/video', { prompt: 'x', engine: 'replicate:p-video', image: pic }, H);
+  ok(noI2v.status === 400 && /cannot start from a picture\. Pick Grok Imagine Video, Seedance 2\.0, Veo 3\.1 Fast/.test(noI2v.data.error.message), 'engines without image-to-video refuse a picture and name the ones that can');
+  const badPic = await post(B, '/api/ai/video', { prompt: 'x', engine: 'fal:veo-3.1-fast', image: { mime: 'image/svg+xml', data: 'PHN2Zz4=' } }, H);
+  ok(badPic.status === 400 && /PNG, JPG or WebP/.test(badPic.data.error.message), 'only PNG, JPG or WebP pictures');
+
   const f = await fetch(B + '/' + firstUrl, { headers: H });
   const buf = Buffer.from(await f.arrayBuffer());
   ok(f.status === 200 && f.headers.get('content-type') === 'video/mp4' && buf.length > 1000, 'video file served (' + buf.length + ' bytes)');

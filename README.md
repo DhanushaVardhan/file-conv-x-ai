@@ -60,7 +60,8 @@ The terminal shows which engines are on. `npm run dev` restarts the server whene
 ## 2. Try it
 
 - **Image:** type a prompt (or press *Surprise me*), pick an engine card, pick a shape, press *Generate*. Under the result, *Same prompt with* re-runs the prompt on another engine so you can compare.
-- **Video:** pick an engine, length, shape and soundtrack. Built-in engines record in real time, so keep the tab open while it records.
+- **Video:** pick an engine, length, shape and soundtrack. Built-in engines record in real time, so keep the tab open while it records. **Stop** also cancels a real-model job at fal.ai or Replicate.
+- **Make it move:** under any picture, *Make it move* opens the video studio. With `FAL_KEY`, Grok Imagine Video, Seedance 2.0 and Veo 3.1 Fast start the clip from the picture itself (image-to-video); otherwise a built-in engine draws the same idea as a clip.
 - **My creations:** every image and clip you make is kept in this browser (up to 40 of each), so it is still there after a reload. Pick one from the strip, delete it (with Undo), or press *Download all* for a zip with a `prompts.md` list. Private windows keep them only until the tab closes.
 - **Summary:** press a sample (*Lecture notes*, *Status report*, *Sales data*) or drop your own file anywhere on the page. Switch between *Summary*, *Key points*, *Study notes*, *Action items* and *Explain simply*; answers are cached, so switching back is instant. Ask questions in the chat below.
 
@@ -149,7 +150,7 @@ alembic/
 | `POST /api/ai/text` | `{prompt}` or `{messages:[{role, content}]}`, plus optional `images`, `files`, `json` → `{text}`. With `stream: true` the answer arrives as server-sent events: `delta` `{text}` pieces, then `done` `{text}` (or `error`) |
 | `POST /api/ai/upload` | Raw video/audio body → `{uri, mime}` from the Gemini Files API (for summaries) |
 | `POST /api/ai/image` | `{prompt, aspect, engine}` → `{images:[{mime, data}], model}` |
-| `POST /api/ai/video` | `{prompt, aspect, duration, engine}` → `{id, status}` (starts a job) |
+| `POST /api/ai/video` | `{prompt, aspect, duration, engine}` → `{id, status}` (starts a job). Add `image: {mime, data}` (PNG/JPG/WebP, base64) to start from a picture on engines with `fromImage` |
 | `GET /api/ai/video/:id` | Job status; when finished, `url` points at the file |
 | `DELETE /api/ai/video/:id` | Stop a job: Alembic stops waiting and asks fal.ai or Replicate to cancel it (`providerCanceled` says whether they did) |
 | `GET /api/files/:id` | The finished video (supports seeking) |

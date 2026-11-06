@@ -226,8 +226,11 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST') {
       const model = rest;
       const bad = (msg) => json(res, 422, { detail: [{ loc: ['body'], msg, type: 'value_error' }] });
+      const i2v = /image-to-video/.test(model);
+      if (i2v && !(typeof b.image_url === 'string' && /^(https:\/\/|data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/])/.test(b.image_url))) return bad('image_url must be a URL or an image data URI');
+      if (i2v && b.aspect_ratio !== 'auto') return bad('mock: image-to-video should follow the picture (aspect_ratio auto)');
       if (/veo3/.test(model) && !/^(4|6|8)s$/.test(b.duration)) return bad('duration must be 4s, 6s or 8s');
-      if (/veo3/.test(model) && !['16:9', '9:16'].includes(b.aspect_ratio)) return bad('bad aspect_ratio');
+      if (/veo3/.test(model) && !i2v && !['16:9', '9:16'].includes(b.aspect_ratio)) return bad('bad aspect_ratio');
       if (/seedance/.test(model) && (typeof b.duration !== 'string' || b.generate_audio !== true)) return bad('seedance duration must be a string');
       if (/grok-imagine/.test(model) && typeof b.duration !== 'number') return bad('grok duration must be an integer');
       if (/flux\/schnell/.test(model) && !FAL_FLUX_SIZES.includes(b.image_size)) return bad('bad image_size ' + JSON.stringify(b.image_size));

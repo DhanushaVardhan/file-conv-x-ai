@@ -135,6 +135,15 @@ function chatTurns(list) {
   if (turns.reduce((n, m) => n + m.content.length, 0) > 600000) throw new ProviderError('too_large', 'That conversation is too long. Start a new one.', 413);
   return turns;
 }
+/** The optional starting picture for "Make it move" (image-to-video). */
+function startPicture(im) {
+  if (im == null) return null;
+  if (typeof im !== 'object' || typeof im.data !== 'string' || !im.data || !/^image\/(png|jpeg|webp)$/.test(im.mime)) {
+    throw new ProviderError('bad_request', 'The starting picture must be a PNG, JPG or WebP image.', 400);
+  }
+  if (im.data.length > 10 * 1024 * 1024) throw new ProviderError('too_large', 'The starting picture is too big. Use one under 7 MB.', 413);
+  return { mime: im.mime, data: im.data };
+}
 /** Gemini file references from /api/ai/upload. */
 function fileRefs(list) {
   if (!Array.isArray(list) || !list.length) return [];
@@ -234,8 +243,13 @@ async function handleApi(req, res, route) {
     if (!engine) throw new ProviderError('no_ai', 'Video generation is off. Add FAL_KEY or REPLICATE_API_TOKEN to .env (or GEMINI_API_KEY with GEMINI_BILLING=on) and restart the server.', 503);
     const duration = engine.durations.includes(Number(body.duration)) ? Number(body.duration) : engine.durations[0];
     const aspect = engine.aspects.includes(body.aspect) ? body.aspect : engine.aspects[0];
-    const job = startVideo(cfg, engine, { prompt: prompt(body.prompt, 2000), aspect, duration });
-    console.log(`[${new Date().toISOString().slice(11, 19)}] video started ${engine.label} ${job.id}`);
+    const image = startPicture(body.image);
+    if (image && !engine.i2vModel) {
+      const can = cfg.videoEngines.filter((e) => e.i2vModel).map((e) => e.label);
+      throw new ProviderError('bad_request', `${engine.label} cannot start from a picture.` + (can.length ? ' Pick ' + can.join(', ') + ' to animate it.' : ''), 400);
+    }
+    const job = startVideo(cfg, engine, { prompt: prompt(body.prompt, 2000), aspect, duration, image });
+    console.log(`[${new Date().toISOString().slice(11, 19)}] video started ${engine.label}${image ? ' from a picture' : ''} ${job.id}`);
     return sendJson(res, 202, publicJob(job));
   }
 

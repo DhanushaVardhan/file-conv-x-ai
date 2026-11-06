@@ -611,6 +611,7 @@
 
   const Video = {
     kind: 'video', ratio: '16:9', duration: 6, style: 'Cinematic', music: 'auto', engineId: null, history: [], current: null, ctl: null, raf: 0, confirmClear: false,
+    source: null, // Make it move: {blob, url} of the picture a clip starts from
     ids: { grid: 'vidEngines', more: 'vidMore', moreSummary: 'vidMoreSummary', locked: 'vidLocked', galleryHead: 'vidGalleryHead', history: 'vidHistory' },
     init() {
       this.upd = counter($('vidPrompt'), $('vidCount'));
@@ -663,6 +664,32 @@
     onEngine() {
       this.renderOptions();
       engineNotice('video', this.engine(), $('vidNotice'));
+      this.renderSource();
+    },
+    /** Engines switched on here that can start a clip from a picture. */
+    animators() {
+      return A.engines.list('video').filter((e) => e.available && !e.local && e.fromImage);
+    },
+    setSource(item) {
+      if (this.source) URL.revokeObjectURL(this.source.url);
+      this.source = item ? { blob: item.blob, url: URL.createObjectURL(item.blob) } : null;
+      this.renderSource();
+    },
+    /** The "Starting picture" card: says whether the chosen engine will use it. */
+    renderSource() {
+      const box = $('vidSource');
+      if (!this.source) { box.hidden = true; box.replaceChildren(); return; }
+      const e = this.engine();
+      const can = !!(e && !e.local && e.fromImage);
+      const names = this.animators().map((x) => x.label).join(', ');
+      fill(box,
+        el('img', { src: this.source.url, alt: 'Starting picture' }),
+        el('div', { class: 'source-text' },
+          el('strong', { text: 'Starting picture' }),
+          el('span', { class: 'fine', text: can ? 'The clip starts from this picture and keeps its shape. Describe the motion you want.' : names ? (e ? e.label : 'This engine') + ' starts from the prompt only. Pick ' + names + ' to animate the picture.' : 'Animating a picture needs a real video model (FAL_KEY on your server).' })),
+        el('button', { class: 'ghost-btn', type: 'button', 'aria-label': 'Remove the starting picture', onclick: () => { this.setSource(null); $('vidPrompt').focus(); } }, 'Remove'));
+      box.classList.toggle('off', !can);
+      box.hidden = false;
     },
     refresh() {
       renderEngines('video', this, this.ids);
@@ -679,20 +706,24 @@
       };
       this.raf = requestAnimationFrame(loop);
     },
-    /** From the image studio: same idea, as a clip. */
+    /**
+     * From the image studio. With a real image-to-video model the clip starts from the picture
+     * itself; otherwise the same idea is drawn again as a clip by a built-in engine.
+     */
     fromImage(item) {
       $('vidPrompt').value = item.prompt;
       this.upd();
       const prefer = item.engineId === 'local:shader' ? 'local:shader-film' : item.engineId === 'local:vector' || item.engineId === 'local:pixel' ? 'local:motion' : null;
       const avail = A.engines.list('video').filter((e) => e.available);
-      const real = avail.find((e) => !e.local);
-      const target = real || avail.find((e) => e.id === prefer);
+      const animator = this.animators()[0];
+      const target = animator || avail.find((e) => !e.local) || avail.find((e) => e.id === prefer);
       if (target) this.engineId = target.id;
       if (['16:9', '9:16', '1:1'].includes(item.ratio)) this.ratio = item.ratio;
+      this.setSource(animator ? item : null);
       this.refresh();
       go('video');
       requestAnimationFrame(() => $('vidPrompt').focus());
-      toast('Prompt copied to the video studio. Press Generate when ready.');
+      toast(animator ? 'Ready to animate your picture with ' + animator.label + '. Describe the motion, then press Generate.' : 'Prompt copied to the video studio. Press Generate when ready.');
     },
     steps(names, active) {
       const box = $('vidSteps');
@@ -732,8 +763,9 @@
       else this.steps(names, 0);
       const stopTimer = busyTimer($('vidElapsed'));
       try {
+        const image = this.source && engine.fromImage && !engine.local ? this.source.blob : null;
         const out = await A.engines.run(engine, {
-          prompt, style: VIDEO_STYLES[this.style], aspect: ratio, duration, music: this.music, signal: ctl.signal,
+          prompt, style: VIDEO_STYLES[this.style], aspect: ratio, duration, music: this.music, image, signal: ctl.signal,
           onStage: (s) => { $('vidBusyTitle').textContent = s; },
           onStep: (i) => this.steps(names, i),
           onCanvas: (c) => {
@@ -776,7 +808,7 @@
       $('vidMedia').replaceChildren(el('video', { src: item.url, controls: true, loop: true, muted: true, autoplay: true, playsinline: true, 'aria-label': item.prompt }));
       $('vidTag').textContent = item.engineLabel + ' · ' + item.ext.toUpperCase();
       const x = item.extras || {};
-      const sound = x.audio ? (x.mood ? '♪ ' + x.mood + ' soundtrack' : '♪ sound') : 'no sound';
+      const sound = (x.fromImage ? 'from your picture · ' : '') + (x.audio ? (x.mood ? '♪ ' + x.mood + ' soundtrack' : '♪ sound') : 'no sound');
       fill($('vidActions'),
         el('button', { class: 'save-btn', type: 'button', html: ICON.download + '<span>' + item.ext.toUpperCase() + '</span>', onclick: () => saveBlob(item.blob, U.slug(x.title || item.prompt, 'alembic-clip') + '.' + item.ext) }),
         x.shader ? el('button', { class: 'ghost-btn', type: 'button', onclick: () => copyText(x.shader) }, 'Copy shader') : null,

@@ -19,6 +19,7 @@ window.ALEMBIC_CATALOG = {
     "4:3"
    ],
    "audio": false,
+   "fromImage": false,
    "available": false,
    "needs": [
     "FAL_KEY"
@@ -42,6 +43,7 @@ window.ALEMBIC_CATALOG = {
     "4:3"
    ],
    "audio": false,
+   "fromImage": false,
    "available": false,
    "needs": [
     "FAL_KEY"
@@ -64,6 +66,7 @@ window.ALEMBIC_CATALOG = {
     "4:3"
    ],
    "audio": false,
+   "fromImage": false,
    "available": false,
    "needs": [
     "CLOUDFLARE_ACCOUNT_ID",
@@ -85,6 +88,7 @@ window.ALEMBIC_CATALOG = {
     "1:1"
    ],
    "audio": false,
+   "fromImage": false,
    "available": false,
    "needs": [
     "CLOUDFLARE_ACCOUNT_ID",
@@ -109,6 +113,7 @@ window.ALEMBIC_CATALOG = {
     "4:3"
    ],
    "audio": false,
+   "fromImage": false,
    "available": false,
    "needs": [
     "REPLICATE_API_TOKEN"
@@ -131,6 +136,7 @@ window.ALEMBIC_CATALOG = {
     "4:3"
    ],
    "audio": false,
+   "fromImage": false,
    "available": false,
    "needs": [
     "REPLICATE_API_TOKEN"
@@ -153,6 +159,7 @@ window.ALEMBIC_CATALOG = {
     "4:3"
    ],
    "audio": false,
+   "fromImage": false,
    "available": false,
    "needs": [
     "OPENAI_API_KEY"
@@ -175,6 +182,7 @@ window.ALEMBIC_CATALOG = {
     "4:3"
    ],
    "audio": false,
+   "fromImage": false,
    "available": false,
    "needs": [
     "GEMINI_API_KEY",
@@ -198,6 +206,7 @@ window.ALEMBIC_CATALOG = {
     "4:3"
    ],
    "audio": false,
+   "fromImage": false,
    "available": false,
    "needs": [
     "POLLINATIONS_API_KEY"
@@ -221,6 +230,7 @@ window.ALEMBIC_CATALOG = {
     "4:3"
    ],
    "audio": false,
+   "fromImage": false,
    "note": "The free demo engine is slow and small. Add any image key for better pictures.",
    "available": false,
    "needs": []
@@ -249,6 +259,7 @@ window.ALEMBIC_CATALOG = {
     15
    ],
    "audio": true,
+   "fromImage": true,
    "available": false,
    "needs": [
     "FAL_KEY"
@@ -277,6 +288,7 @@ window.ALEMBIC_CATALOG = {
     15
    ],
    "audio": true,
+   "fromImage": true,
    "available": false,
    "needs": [
     "FAL_KEY"
@@ -303,6 +315,7 @@ window.ALEMBIC_CATALOG = {
     8
    ],
    "audio": true,
+   "fromImage": true,
    "available": false,
    "needs": [
     "FAL_KEY"
@@ -330,6 +343,7 @@ window.ALEMBIC_CATALOG = {
     10
    ],
    "audio": false,
+   "fromImage": false,
    "available": false,
    "needs": [
     "REPLICATE_API_TOKEN"
@@ -353,6 +367,7 @@ window.ALEMBIC_CATALOG = {
     10
    ],
    "audio": false,
+   "fromImage": false,
    "available": false,
    "needs": [
     "REPLICATE_API_TOKEN"
@@ -379,6 +394,7 @@ window.ALEMBIC_CATALOG = {
     8
    ],
    "audio": true,
+   "fromImage": false,
    "available": false,
    "needs": [
     "REPLICATE_API_TOKEN"
@@ -405,6 +421,7 @@ window.ALEMBIC_CATALOG = {
     8
    ],
    "audio": true,
+   "fromImage": false,
    "available": false,
    "needs": [
     "GEMINI_API_KEY",

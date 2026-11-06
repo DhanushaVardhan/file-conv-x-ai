@@ -170,11 +170,18 @@
     return { kind: 'image', blob: im.blob, mime: im.mime, ext, extras: {} };
   }
 
-  async function runServerVideo(engine, { prompt, style, aspect, duration, signal, onStage, onStep }) {
-    onStage('Sending your prompt…');
+  async function runServerVideo(engine, { prompt, style, aspect, duration, image, signal, onStage, onStep }) {
+    onStage(image ? 'Sending your picture and prompt…' : 'Sending your prompt…');
     onStep(0);
+    // Make it move: a JPEG up to 1280 px keeps the request small (fal takes it as a data URI).
+    let picture;
+    if (image && engine.fromImage) {
+      const small = await U.downscaleImage(image, 1280, 'image/jpeg', 0.88);
+      picture = { mime: 'image/jpeg', data: await U.blobToBase64(small) };
+      U.checkAbort(signal);
+    }
     // Not aborted mid-request: once the server has the job, Stop has to cancel it there.
-    const job = await A.ai.videoStart({ prompt: styled(prompt, style), aspect, duration, engine: engine.id });
+    const job = await A.ai.videoStart({ prompt: styled(prompt, style), aspect, duration, engine: engine.id, image: picture });
     /** Stop pressed: ask the server to cancel the job at the provider, then report what happened. */
     const stop = async () => {
       const err = U.cancelled();
@@ -207,7 +214,7 @@
     onStage('Downloading your clip…');
     const blob = await A.ai.download(st.url, signal);
     const ext = (blob.type.split('/')[1] || 'mp4').replace('quicktime', 'mov');
-    return { kind: 'video', blob, mime: blob.type, ext, extras: { audio: !!engine.audio } };
+    return { kind: 'video', blob, mime: blob.type, ext, extras: { audio: !!engine.audio, fromImage: !!picture } };
   }
 
   /* --------------------------------------------------------------- listing */
@@ -240,7 +247,7 @@
     return list(kind).find((e) => e.id === id) || null;
   }
 
-  /** Run an engine. ctx: {prompt, style, aspect, duration, music, signal, onStage, onCanvas, onProgress, onStep, shaderCode} */
+  /** Run an engine. ctx: {prompt, style, aspect, duration, music, image, signal, onStage, onCanvas, onProgress, onStep, shaderCode} */
   async function run(engine, ctx) {
     const noop = () => {};
     const c = Object.assign({ onStage: noop, onCanvas: noop, onProgress: noop, onStep: noop }, ctx);

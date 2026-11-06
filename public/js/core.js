@@ -506,9 +506,9 @@
       const r = await api('api/ai/image', { method: 'POST', body: { prompt, aspect, engine }, signal });
       return (r.images || []).map((im) => ({ blob: util.base64ToBlob(im.data, im.mime), mime: im.mime, model: r.model }));
     },
-    /** Server-side video generation: start a job, then poll. */
-    async videoStart({ prompt, aspect, duration, engine, signal }) {
-      return api('api/ai/video', { method: 'POST', body: { prompt, aspect, duration, engine }, signal });
+    /** Server-side video generation: start a job, then poll. image ({mime, data}) starts it from a picture. */
+    async videoStart({ prompt, aspect, duration, engine, image, signal }) {
+      return api('api/ai/video', { method: 'POST', body: { prompt, aspect, duration, engine, image }, signal });
     },
     async videoStatus(id, signal) {
       return api('api/ai/video/' + encodeURIComponent(id), { signal });
