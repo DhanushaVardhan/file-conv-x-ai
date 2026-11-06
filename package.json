@@ -1,6 +1,6 @@
 {
   "name": "alembic",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "AI image and video studio with several engines (built-in and real models), plus AI summaries of any file. Zero dependencies.",
   "type": "module",
   "main": "server.js",

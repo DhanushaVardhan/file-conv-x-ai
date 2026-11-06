@@ -30,6 +30,9 @@ npm run build:artifact    # dist/alembic.html (single file for the Claude artifa
 ```
 
 Browser tests need Python 3 with `playwright` (`pip install playwright && playwright install chromium`).
+In a Claude Code cloud container Chromium is already installed: make a venv with the Python
+`playwright` matching the preinstalled Node one and put it first on PATH; never run
+`playwright install` there (details in `HANDOFF.md` section 8).
 Run `npm test` after any server change, `npm run test:ui` after any front-end change, and
 `npm run test:e2e` when a change crosses both.
 
@@ -49,18 +52,21 @@ Run `npm test` after any server change, `npm run test:ui` after any front-end ch
   output, and say what it will roughly cost.
 - **Ask before pushing to `main`, deleting files the user made, or force-pushing.** Work on a
   branch and open a PR.
+- **Prices change.** Engine prices in `lib/catalog.js` are list prices with the date they were
+  read; update the comment block there when you change one. `MAX_SPEND_PER_DAY` relies on them.
 
 ## Code map
 
 ```
 server.js                 HTTP server, routes, access code, rate limit, static files + CSP
-lib/catalog.js            every server engine: id, provider, label, model, modelEnv, aspects, durations, audio
+lib/catalog.js            every server engine: id, provider, label, model, modelEnv, aspects, durations, audio,
+                          i2v (image-to-video model for Make it move), price; estimateCost()
 lib/config.js             .env loader; which text AI and which engines are available
 lib/http.js               fetchJson/fetchBytes/downloadUrl, explain() → friendly ProviderError
-lib/providers/text.js     generateText({prompt | messages, images, files, json}) for gemini/anthropic/openai
+lib/providers/text.js     generateText / streamText({prompt | messages, images, files, json}) for gemini/anthropic/openai
 lib/providers/image.js    generateImage(): fal, cloudflare, replicate, gemini, openai, pollinations
-lib/providers/video.js    startVideo() background jobs: replicate, fal, gemini; files kept 2 h in tmp
-lib/providers/fal.js      fal queue: submit → poll status_url → GET response_url
+lib/providers/video.js    startVideo() background jobs (+ image-to-video), cancelVideo(); files kept 2 h in tmp
+lib/providers/fal.js      fal queue: submit → poll status_url → GET response_url; falCancel() (PUT cancel_url)
 lib/providers/files.js    Gemini Files API resumable upload, streamed from the browser request
 public/js/core.js         util, lazy libs, env detection, A.save (downloads), A.ai adapter
 public/js/engines.js      A.engines.list/find/run: built-in engines + server engines in one list
