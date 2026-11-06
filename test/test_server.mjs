@@ -44,7 +44,12 @@ async function waitJob(B, id, headers = {}) {
   }
   return st;
 }
+const del = async (B, path, headers = {}) => {
+  const r = await fetch(B + path, { method: 'DELETE', headers });
+  return { status: r.status, data: (r.headers.get('content-type') || '').includes('json') ? await r.json() : null };
+};
 const lastCall = (re) => [...log].reverse().find((l) => re.test(l.path) && l.method === 'POST');
+const lastAny = (re) => [...log].reverse().find((l) => re.test(l.path));
 const img = { mime: 'image/png', data: 'iVBORw0KGgo=' };
 const avail = (h, kind) => h.engines[kind].filter((e) => e.available).map((e) => e.id).join();
 
@@ -163,6 +168,33 @@ await withServer({ GEMINI_API_KEY: 'gk', REPLICATE_API_TOKEN: 'rt', FAL_KEY: 'fk
   const part = await fetch(B + '/' + firstUrl, { headers: { ...H, range: 'bytes=0-99' } });
   ok(part.status === 206 && (await part.arrayBuffer()).byteLength === 100, 'range request returns 206 with 100 bytes');
   ok((await fetch(B + '/' + firstUrl)).status === 401, 'file needs the access code too');
+
+  // Stop: the job is cancelled at the provider, not just abandoned
+  const cancels = [
+    ['fal:seedance-2', /^\/fal\/bytedance\/seedance-2\.0\/requests\/\w+\/cancel$/, 'PUT'],
+    ['replicate:p-video', /^\/v1\/predictions\/\w+\/cancel$/, 'POST'],
+  ];
+  for (const [engine, re, method] of cancels) {
+    const v = await post(B, '/api/ai/video', { prompt: 'slow please', engine, aspect: '16:9', duration: 8 }, H);
+    await sleep(400);
+    const c = await del(B, '/api/ai/video/' + v.data.id, H);
+    const call = lastAny(re);
+    ok(c.status === 200 && c.data.status === 'canceled' && c.data.providerCanceled === true && call && call.method === method,
+      engine + ' stop cancels the provider job with ' + (call ? call.method + ' ' + call.path.replace(/\w+\/cancel$/, '…/cancel') : 'no call') + ' ' + JSON.stringify(c.data));
+    await sleep(600);
+    const st = (await get(B, '/api/ai/video/' + v.data.id, H)).data;
+    ok(st.status === 'canceled' && !st.url && !st.error, engine + ' stays cancelled with no file: ' + JSON.stringify(st));
+  }
+  const late = await post(B, '/api/ai/video', { prompt: 'late please', engine: 'fal:grok-video', aspect: '16:9', duration: 6 }, H);
+  await sleep(400);
+  const lc = await del(B, '/api/ai/video/' + late.data.id, H);
+  ok(lc.data.status === 'canceled' && lc.data.providerCanceled === false, 'fal "already completed" reported as not cancelled at the provider');
+  const doneJob = await post(B, '/api/ai/video', { prompt: 'waves', engine: 'replicate:p-video', aspect: '16:9', duration: 5 }, H);
+  await waitJob(B, doneJob.data.id, H);
+  const dc = await del(B, '/api/ai/video/' + doneJob.data.id, H);
+  ok(dc.status === 200 && dc.data.status === 'succeeded' && dc.data.url, 'stopping a finished job changes nothing');
+  ok((await del(B, '/api/ai/video/00000000-unknown', H)).status === 404, 'stopping an unknown job -> 404');
+  ok((await del(B, '/api/ai/video/' + doneJob.data.id)).status === 401, 'stopping needs the access code');
 });
 
 console.log('C. Claude text, OpenAI + Cloudflare + Gemini billing + Pollinations');
@@ -193,6 +225,12 @@ await withServer({ ANTHROPIC_API_KEY: 'ak', OPENAI_API_KEY: 'ok', GEMINI_API_KEY
   const v = await post(B, '/api/ai/video', { prompt: 'x', aspect: '9:16', duration: 4, engine: 'gemini:omni' });
   const st = await waitJob(B, v.data.id);
   ok(st.status === 'succeeded', 'gemini omni video via uri download: ' + st.status + ' ' + (st.error || ''));
+  const slow = await post(B, '/api/ai/video', { prompt: 'slow please', aspect: '16:9', duration: 4, engine: 'gemini:omni' });
+  await sleep(300);
+  const c = await del(B, '/api/ai/video/' + slow.data.id);
+  await sleep(300);
+  const st2 = (await get(B, '/api/ai/video/' + slow.data.id)).data;
+  ok(c.data.status === 'canceled' && c.data.providerCanceled === false && st2.status === 'canceled', 'gemini omni stop drops the request (Google may still bill it)');
 });
 
 console.log('D. OpenAI text, bad keys, missing model, rate limit');

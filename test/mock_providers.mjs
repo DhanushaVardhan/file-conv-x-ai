@@ -12,6 +12,10 @@ const falJobs = new Map();
 const uploads = new Map();
 const files = new Map();
 let seq = 0;
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+// Magic prompts: "slow please" keeps a job running until it is cancelled;
+// "late please" also runs forever, but its cancel comes back "already completed".
+const SLOW = /slow please|late please/;
 const nextId = (p) => p + (++seq).toString(36) + Math.random().toString(36).slice(2, 6);
 
 function readRaw(req) {
@@ -79,7 +83,11 @@ const server = http.createServer(async (req, res) => {
   /* ---------------- Gemini interactions (image + video) */
   if (u.pathname === '/v1beta/interactions') {
     if (b.response_format.type === 'image') return json(res, 200, { id: 'i1', steps: [{ type: 'user_input' }, { type: 'model_output', content: [{ type: 'image', mime_type: 'image/png', data: PNG.toString('base64') }] }] });
-    if (b.response_format.type === 'video') return json(res, 200, { id: 'i2', steps: [{ type: 'model_output', content: [{ type: 'video', mime_type: 'video/mp4', uri: MOCK + '/v1beta/files/vid123' }] }] });
+    if (b.response_format.type === 'video') {
+      if (SLOW.test(b.input)) await wait(5000);
+      if (res.destroyed) return; // the server dropped the request (Stop)
+      return json(res, 200, { id: 'i2', steps: [{ type: 'model_output', content: [{ type: 'video', mime_type: 'video/mp4', uri: MOCK + '/v1beta/files/vid123' }] }] });
+    }
   }
   if (u.pathname === '/v1beta/files/vid123:download') {
     if (req.headers['x-goog-api-key'] !== 'gk') return json(res, 403, {});
@@ -109,7 +117,7 @@ const server = http.createServer(async (req, res) => {
     if (req.headers.authorization !== 'Bearer rt') return json(res, 401, { detail: 'Invalid token' });
     const id = nextId('p');
     const isVideo = /video|veo|h3/.test(m[1]);
-    const p = { id, model: m[1], input: b.input, status: 'starting', output: null, polls: 0, isVideo };
+    const p = { id, model: m[1], input: b.input, status: 'starting', output: null, polls: 0, isVideo, slow: SLOW.test(b.input && b.input.prompt) };
     preds.set(id, p);
     if (req.headers.prefer && !isVideo) {
       p.status = 'succeeded';
@@ -117,11 +125,19 @@ const server = http.createServer(async (req, res) => {
     }
     return json(res, 201, { id, status: p.status, output: p.output, urls: { get: 'x' } });
   }
+  if ((m = /^\/v1\/predictions\/(\w+)\/cancel$/.exec(u.pathname)) && req.method === 'POST') {
+    if (req.headers.authorization !== 'Bearer rt') return json(res, 401, { detail: 'Invalid token' });
+    const p = preds.get(m[1]);
+    if (!p) return json(res, 404, { detail: 'Not found' });
+    if (p.status === 'starting' || p.status === 'processing') p.status = 'canceled';
+    return json(res, 200, { id: p.id, status: p.status, output: p.output });
+  }
   if ((m = /^\/v1\/predictions\/(\w+)$/.exec(u.pathname))) {
     const p = preds.get(m[1]);
     p.polls++;
-    if (p.polls === 1) p.status = 'processing';
-    if (p.polls >= 2) { p.status = 'succeeded'; p.output = MOCK + '/delivery/out.mp4'; }
+    if (p.status === 'canceled') return json(res, 200, { id: p.id, status: p.status, output: null });
+    if (p.polls === 1 || p.slow) p.status = 'processing';
+    if (p.polls >= 2 && !p.slow) { p.status = 'succeeded'; p.output = MOCK + '/delivery/out.mp4'; }
     return json(res, 200, { id: p.id, status: p.status, output: p.output });
   }
   /* ---------------- fal.ai queue (FAL_BASE_URL = MOCK/fal) */
@@ -132,6 +148,8 @@ const server = http.createServer(async (req, res) => {
       const j = falJobs.get(m[2]);
       if (!j || j.app !== m[1]) return json(res, 405, { detail: 'Method not allowed' });
       j.polls++;
+      if (j.canceled) return json(res, 200, { status: 'COMPLETED', request_id: j.id, error: 'Request was cancelled', error_type: 'request_cancelled' });
+      if (SLOW.test(j.input.prompt)) return json(res, 200, { status: j.polls === 1 ? 'IN_QUEUE' : 'IN_PROGRESS', request_id: j.id });
       if (j.polls === 1) return json(res, 200, { status: 'IN_PROGRESS', request_id: j.id });
       if (/fail please/.test(j.input.prompt)) return json(res, 200, { status: 'COMPLETED', request_id: j.id, error: 'Content blocked by the safety filter', error_type: 'content_policy' });
       return json(res, 200, { status: 'COMPLETED', request_id: j.id, metrics: { inference_time: 1.2 } });
@@ -141,6 +159,14 @@ const server = http.createServer(async (req, res) => {
       if (!j || j.app !== m[1]) return json(res, 405, { detail: 'Method not allowed' });
       if (j.video) return json(res, 200, { video: { url: MOCK + '/delivery/out.mp4', content_type: 'video/mp4' }, seed: 1 });
       return json(res, 200, { images: [{ url: MOCK + '/delivery/out.png', width: 1024, height: 1024, content_type: 'image/png' }], seed: 1, has_nsfw_concepts: [false] });
+    }
+    // PUT {cancel_url}: 200 OK while queued, 202 while running, 400 when already completed.
+    if ((m = /^([^/]+\/[^/]+)\/requests\/(\w+)\/cancel$/.exec(rest)) && req.method === 'PUT') {
+      const j = falJobs.get(m[2]);
+      if (!j || j.app !== m[1]) return json(res, 404, { status: 'NOT_FOUND' });
+      if (/late please/.test(j.input.prompt) || (!SLOW.test(j.input.prompt) && j.polls >= 2)) return json(res, 400, { status: 'ALREADY_COMPLETED' });
+      j.canceled = true;
+      return j.polls <= 1 ? json(res, 200, { status: 'OK' }) : json(res, 202, { status: 'CANCELLATION_REQUESTED' });
     }
     if (req.method === 'POST') {
       const model = rest;

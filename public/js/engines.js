@@ -173,15 +173,35 @@
   async function runServerVideo(engine, { prompt, style, aspect, duration, signal, onStage, onStep }) {
     onStage('Sending your prompt…');
     onStep(0);
-    const job = await A.ai.videoStart({ prompt: styled(prompt, style), aspect, duration, engine: engine.id, signal });
+    // Not aborted mid-request: once the server has the job, Stop has to cancel it there.
+    const job = await A.ai.videoStart({ prompt: styled(prompt, style), aspect, duration, engine: engine.id });
+    /** Stop pressed: ask the server to cancel the job at the provider, then report what happened. */
+    const stop = async () => {
+      const err = U.cancelled();
+      err.provider = engine.providerLabel || engine.label;
+      err.providerCanceled = false;
+      onStage('Stopping…');
+      try {
+        const r = await A.ai.videoCancel(job.id);
+        err.providerCanceled = !!(r && r.providerCanceled);
+      } catch (_) { /* the server could not be reached; nothing more to do */ }
+      return err;
+    };
+    if (signal && signal.aborted) throw await stop();
     let st = job;
     onStage('Generating. Real AI video takes 30 seconds to a few minutes.');
     while (!['succeeded', 'failed', 'canceled'].includes(st.status)) {
-      await U.sleep(4000);
-      U.checkAbort(signal);
-      st = await A.ai.videoStatus(job.id, signal);
+      await U.sleep(4000, signal);
+      if (signal && signal.aborted) throw await stop();
+      try {
+        st = await A.ai.videoStatus(job.id, signal);
+      } catch (e) {
+        if (e && e.code === 'cancelled') throw await stop();
+        throw e;
+      }
       onStep(st.status === 'queued' ? 0 : 1);
     }
+    if (st.status === 'canceled') throw U.cancelled();
     if (st.status !== 'succeeded') throw new Error(st.error || 'The video could not be generated. Try a different prompt.');
     onStep(2);
     onStage('Downloading your clip…');

@@ -9,7 +9,13 @@
 
   /* ---------------------------------------------------------------- utils */
   const util = (A.util = {
-    sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+    /** Wait `ms`, or less if `signal` aborts first (the caller then checks the signal). */
+    sleep: (ms, signal) => new Promise((resolve) => {
+      if (signal && signal.aborted) return resolve();
+      const done = () => { clearTimeout(timer); if (signal) signal.removeEventListener('abort', done); resolve(); };
+      const timer = setTimeout(done, ms);
+      if (signal) signal.addEventListener('abort', done, { once: true });
+    }),
     nextFrame: () => new Promise((r) => requestAnimationFrame(() => r())),
     yieldToUI: () => new Promise((r) => setTimeout(r, 0)),
     formatBytes(n) {
@@ -266,12 +272,13 @@
   function headers(extra) {
     return Object.assign({ accept: 'application/json' }, env.accessCode ? { 'x-access-code': env.accessCode } : {}, extra || {});
   }
-  async function api(path, { method = 'GET', body, signal } = {}) {
+  async function api(path, { method = 'GET', body, signal, keepalive } = {}) {
     let r;
     try {
       r = await fetch(path, {
         method,
         signal,
+        keepalive: !!keepalive,
         headers: headers(body ? { 'content-type': 'application/json' } : null),
         body: body ? JSON.stringify(body) : undefined,
       });
@@ -424,6 +431,10 @@
     },
     async videoStatus(id, signal) {
       return api('api/ai/video/' + encodeURIComponent(id), { signal });
+    },
+    /** Stop a server video job; the server asks the provider to cancel it. Resolves to the job ({status, providerCanceled}). */
+    async videoCancel(id) {
+      return api('api/ai/video/' + encodeURIComponent(id), { method: 'DELETE', keepalive: true });
     },
     async download(url, signal) {
       const r = await fetch(url, { headers: env.accessCode ? { 'x-access-code': env.accessCode } : {}, signal });

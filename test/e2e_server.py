@@ -93,6 +93,19 @@ async def main():
         await page.wait_for_function("window.Alembic.app.Video.history.length === 1", timeout=30000)
         v = await page.evaluate("({ id: window.Alembic.app.Video.current.engineId, size: window.Alembic.app.Video.current.blob.size, audio: window.Alembic.app.Video.current.extras.audio })")
         ok(v['id'] == 'fal:veo-3.1-fast' and v['size'] > 1000 and v['audio'], 'fal video downloaded: %s' % v)
+        # Stop a real-model job: the server cancels it at fal.ai, and the last clip stays on stage
+        await page.click('#vidEngines .engine[data-key="fal:seedance-2"]')
+        await page.fill('#vidPrompt', 'slow please: waves at night')
+        await page.click('#vidGo')
+        await page.wait_for_selector('#vidSteps span.on', timeout=5000)
+        await page.wait_for_timeout(1200)
+        await page.click('#vidStop')
+        try:
+            await page.wait_for_selector('#toasts .toast:has-text("was told to cancel")', timeout=10000)
+            back = await page.evaluate("({ n: window.Alembic.app.Video.history.length, busy: !document.getElementById('vidBusy').hidden, go: !document.getElementById('vidGo').disabled })")
+            ok(back['n'] == 1 and not back['busy'] and back['go'], 'stop cancels the fal job and restores the studio: %s' % back)
+        except Exception as e:
+            ok(False, 'stop on a real engine: %s' % e)
         print('Summary with Gemini watching the video')
         await page.click('#tab-summary')
         await page.set_input_files('#fileInput', [ROOT + '/test/fixtures/clip.mp4'])

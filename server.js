@@ -9,7 +9,7 @@ import { loadEnvFile, readConfig } from './lib/config.js';
 import { ProviderError } from './lib/http.js';
 import { generateText } from './lib/providers/text.js';
 import { generateImage } from './lib/providers/image.js';
-import { startVideo, getJob, publicJob } from './lib/providers/video.js';
+import { startVideo, cancelVideo, getJob, publicJob } from './lib/providers/video.js';
 import { uploadToGemini, mediaMime } from './lib/providers/files.js';
 import { publicEngine } from './lib/catalog.js';
 
@@ -207,6 +207,12 @@ async function handleApi(req, res, route) {
   if (vm && req.method === 'GET') {
     const job = getJob(vm[1]);
     if (!job) throw new ProviderError('not_found', 'That video job was not found. It may have expired; generate it again.', 404);
+    return sendJson(res, 200, publicJob(job));
+  }
+  // Stop: stop waiting and ask the provider to cancel the job, so an unfinished clip is not billed.
+  if (vm && req.method === 'DELETE') {
+    const job = await cancelVideo(vm[1]);
+    if (!job) throw new ProviderError('not_found', 'That video job was not found. It may have expired.', 404);
     return sendJson(res, 200, publicJob(job));
   }
 

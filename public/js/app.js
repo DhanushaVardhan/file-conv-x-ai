@@ -742,6 +742,11 @@
         this.show(item);
       } catch (e) {
         handleAiError(e);
+        if (e && e.code === 'cancelled' && e.provider) {
+          toast(e.providerCanceled
+            ? 'Stopped, and ' + e.provider + ' was told to cancel the clip.'
+            : 'Stopped. ' + e.provider + ' had already finished or cannot cancel this clip, so it may still be billed.', { ms: 6500 });
+        }
         this.ctl = null;
         this.restoreStage();
       } finally {

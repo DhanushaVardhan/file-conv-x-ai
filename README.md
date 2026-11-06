@@ -149,6 +149,7 @@ alembic/
 | `POST /api/ai/image` | `{prompt, aspect, engine}` → `{images:[{mime, data}], model}` |
 | `POST /api/ai/video` | `{prompt, aspect, duration, engine}` → `{id, status}` (starts a job) |
 | `GET /api/ai/video/:id` | Job status; when finished, `url` points at the file |
+| `DELETE /api/ai/video/:id` | Stop a job: Alembic stops waiting and asks fal.ai or Replicate to cancel it (`providerCanceled` says whether they did) |
 | `GET /api/files/:id` | The finished video (supports seeking) |
 
 ### Tests
