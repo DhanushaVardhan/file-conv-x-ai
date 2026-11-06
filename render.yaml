@@ -1,5 +1,10 @@
-# One-click deploy on Render: New + > Blueprint > pick this repository.
-# Add only the keys you have; every one is optional. See README, step 3.
+# One-click deploy on Render: New > Blueprint > Connect this repository > Deploy Blueprint.
+# Render asks for the two values below when it creates the service (only then).
+# Add any other key later in the service's Environment tab, for example:
+#   FAL_KEY, REPLICATE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN,
+#   ANTHROPIC_API_KEY, OPENAI_API_KEY (see README, section 3).
+# MAX_SPEND_PER_DAY is set here, so change it in this file (a dashboard edit is undone on the
+# next Blueprint sync).
 services:
   - type: web
     name: alembic
@@ -10,17 +15,9 @@ services:
     startCommand: node server.js
     healthCheckPath: /api/health
     envVars:
-      - key: GEMINI_API_KEY
+      - key: GEMINI_API_KEY      # free key from https://aistudio.google.com/apikey
         sync: false
-      - key: FAL_KEY
-        sync: false
-      - key: REPLICATE_API_TOKEN
-        sync: false
-      - key: CLOUDFLARE_ACCOUNT_ID
-        sync: false
-      - key: CLOUDFLARE_API_TOKEN
-        sync: false
-      - key: ACCESS_CODE
+      - key: ACCESS_CODE         # a password you choose; visitors type it once before using AI
         sync: false
       - key: MAX_SPEND_PER_DAY
         value: "2"

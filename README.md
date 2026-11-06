@@ -96,13 +96,23 @@ If you set more than one text key, choose with `TEXT_PROVIDER=gemini|anthropic|o
 
 ## 4. Put it on the internet
 
-### Render (free tier)
+### Render (free plan)
 
 1. Push this folder to a GitHub repository. `.env` is in `.gitignore`, so your keys stay private.
-2. At <https://render.com>: **New → Blueprint** → pick the repository (the included `render.yaml` fills in the settings). Or **New → Web Service** with start command `node server.js`.
-3. Under **Environment**, add your keys and an `ACCESS_CODE`.
+2. Sign in at <https://dashboard.render.com> with GitHub, then choose **New → Blueprint**.
+3. Press **Connect** next to the repository, give the Blueprint a name, and pick the `main`
+   branch.
+4. Render shows the service it will create (`alembic`, free plan) and asks for two values:
+   - `GEMINI_API_KEY`: your free key from <https://aistudio.google.com/apikey>.
+   - `ACCESS_CODE`: a password you choose.
+5. Press **Deploy Blueprint**. The first deploy takes a few minutes. When the service shows
+   **Live**, open its `onrender.com` address.
+6. More keys later: open the service, go to **Environment**, press **+ Add Environment
+   Variable**, then **Save and deploy**.
 
-Free Render services sleep after 15 minutes without visitors; the next visit takes about a minute to wake up.
+Free Render services sleep after 15 minutes without visitors, and the next visit takes about a
+minute to wake up. A restart also clears running video jobs and finished clips; download clips
+you want to keep. `render.yaml` sets `MAX_SPEND_PER_DAY=2` (USD); change it in that file.
 
 ### Any server or VPS
 

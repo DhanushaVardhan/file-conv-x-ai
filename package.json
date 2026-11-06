@@ -14,7 +14,7 @@
     "build:artifact": "node tools/build_artifact.mjs"
   },
   "engines": {
-    "node": ">=18.17"
+    "node": ">=18.17 <25"
   },
   "private": true
 }
